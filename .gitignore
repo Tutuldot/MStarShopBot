@@ -37,3 +37,4 @@ data/*.db-shm
 # TypeScript cache
 *.tsbuildinfo
 next-env.d.ts
+
