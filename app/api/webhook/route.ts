@@ -132,6 +132,19 @@ export async function POST(req: NextRequest) {
 
             conv = await queryOne<any>('SELECT * FROM conversations WHERE id = ?', [res.insertId]);
           } else {
+            // If the conversation was previously saved with a placeholder name or missing avatar, try fetching it from Meta
+            if (!conv.customer_profile_pic || conv.customer_name.startsWith('User ') || conv.customer_name === 'Facebook User') {
+              const profile = await fetchMetaUserProfile(senderPsid);
+              if (profile) {
+                await execute(
+                  'UPDATE conversations SET customer_name = ?, customer_profile_pic = ? WHERE id = ?',
+                  [profile.name, profile.profile_pic || null, conv.id]
+                );
+                conv.customer_name = profile.name;
+                conv.customer_profile_pic = profile.profile_pic;
+              }
+            }
+
             await execute(`
               UPDATE conversations
               SET last_message = ?, last_message_at = CURRENT_TIMESTAMP, unread = unread + 1

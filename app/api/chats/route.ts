@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { psid, customerName, text } = await req.json();
+    const { psid, customerName, customerProfilePic, text } = await req.json();
 
     if (!text || !text.trim()) {
       return NextResponse.json({ error: 'Message text is required' }, { status: 400 });
@@ -39,11 +39,15 @@ export async function POST(req: NextRequest) {
 
     if (!conv) {
       const res = await execute(`
-        INSERT INTO conversations (psid, customer_name, last_message, unread)
-        VALUES (?, ?, ?, 1)
-      `, [testPsid, name, text.trim()]);
+        INSERT INTO conversations (psid, customer_name, customer_profile_pic, last_message, unread)
+        VALUES (?, ?, ?, ?, 1)
+      `, [testPsid, name, customerProfilePic || null, text.trim()]);
       conv = await queryOne<any>('SELECT * FROM conversations WHERE id = ?', [res.insertId]);
     } else {
+      if (customerProfilePic && !conv.customer_profile_pic) {
+        await execute('UPDATE conversations SET customer_profile_pic = ? WHERE id = ?', [customerProfilePic, conv.id]);
+        conv.customer_profile_pic = customerProfilePic;
+      }
       await execute(`
         UPDATE conversations
         SET last_message = ?, last_message_at = CURRENT_TIMESTAMP, unread = unread + 1

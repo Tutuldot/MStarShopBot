@@ -118,17 +118,29 @@ export async function sendMetaProductCard(psid: string, product: {
 
 export async function fetchMetaUserProfile(psid: string): Promise<{ name: string; profile_pic?: string } | null> {
   const { pageAccessToken } = await getMetaSettings();
-  if (!pageAccessToken) return null;
+  if (!pageAccessToken) {
+    console.warn('[Meta Profile] Cannot fetch profile: Facebook Page Access Token is not set in Settings.');
+    return null;
+  }
+
+  // Skip simulation PSIDs
+  if (psid.startsWith('sim_') || psid.startsWith('customer_test_')) {
+    return null;
+  }
 
   try {
-    const res = await fetch(`https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${encodeURIComponent(pageAccessToken)}`);
-    if (res.ok) {
-      const data = await res.json();
-      const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ') || 'Facebook User';
-      return { name: fullName, profile_pic: data.profile_pic };
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${encodeURIComponent(psid)}?fields=name,first_name,last_name,profile_pic&access_token=${encodeURIComponent(pageAccessToken)}`
+    );
+    const data = await res.json();
+    if (res.ok && !data.error) {
+      const fullName = data.name || [data.first_name, data.last_name].filter(Boolean).join(' ') || 'Facebook User';
+      return { name: fullName, profile_pic: data.profile_pic || undefined };
+    } else {
+      console.warn('[Meta Profile] Graph API returned error for PSID', psid, data.error);
     }
   } catch (err) {
-    console.error('Error fetching user profile:', err);
+    console.error('[Meta Profile] Error fetching user profile:', err);
   }
   return null;
 }
