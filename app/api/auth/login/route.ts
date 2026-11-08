@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryOne } from '@/lib/db';
 import { verifyPassword, setSessionCookie } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -10,8 +10,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    const db = getDb();
-    const user = db.prepare('SELECT id, name, email, password_hash, salt, role FROM users WHERE email = ?').get(email.toLowerCase().trim()) as any;
+    const user = await queryOne<any>(
+      'SELECT id, name, email, password_hash, salt, role FROM users WHERE email = ?',
+      [email.toLowerCase().trim()]
+    );
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });

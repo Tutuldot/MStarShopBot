@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryOne, queryAll, execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function GET(
@@ -10,14 +10,13 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const db = getDb();
 
-  const set = db.prepare('SELECT * FROM basket_sets WHERE id = ?').get(Number(id));
+  const set = await queryOne('SELECT * FROM basket_sets WHERE id = ?', [Number(id)]);
   if (!set) {
     return NextResponse.json({ error: 'Basket set not found' }, { status: 404 });
   }
 
-  const products = db.prepare('SELECT * FROM products WHERE basket_set_id = ? ORDER BY id ASC').all(Number(id));
+  const products = await queryAll('SELECT * FROM products WHERE basket_set_id = ? ORDER BY id ASC', [Number(id)]);
 
   return NextResponse.json({ set, products });
 }
@@ -36,12 +35,11 @@ export async function PUT(
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
 
-  const db = getDb();
-  db.prepare(`
+  await execute(`
     UPDATE basket_sets
     SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(name.trim(), description || '', Number(id));
+  `, [name.trim(), description || '', Number(id)]);
 
   return NextResponse.json({ success: true });
 }
@@ -54,23 +52,22 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const db = getDb();
 
   // Check if trying to delete the only active set
-  const set = db.prepare('SELECT is_active FROM basket_sets WHERE id = ?').get(Number(id)) as { is_active: number } | undefined;
+  const set = await queryOne<{ is_active: number }>('SELECT is_active FROM basket_sets WHERE id = ?', [Number(id)]);
   if (set?.is_active === 1) {
-    const totalSets = db.prepare('SELECT COUNT(*) as count FROM basket_sets').get() as { count: number };
-    if (totalSets.count > 1) {
+    const totalSets = await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM basket_sets');
+    if ((totalSets?.count ?? 0) > 1) {
       // Pick another set to activate if available
-      const nextSet = db.prepare('SELECT id FROM basket_sets WHERE id != ? LIMIT 1').get(Number(id)) as { id: number };
+      const nextSet = await queryOne<{ id: number }>('SELECT id FROM basket_sets WHERE id != ? LIMIT 1', [Number(id)]);
       if (nextSet) {
-        db.prepare('UPDATE basket_sets SET is_active = 1 WHERE id = ?').run(nextSet.id);
+        await execute('UPDATE basket_sets SET is_active = 1 WHERE id = ?', [nextSet.id]);
       }
     }
   }
 
-  db.prepare('DELETE FROM products WHERE basket_set_id = ?').run(Number(id));
-  db.prepare('DELETE FROM basket_sets WHERE id = ?').run(Number(id));
+  await execute('DELETE FROM products WHERE basket_set_id = ?', [Number(id)]);
+  await execute('DELETE FROM basket_sets WHERE id = ?', [Number(id)]);
 
   return NextResponse.json({ success: true });
 }

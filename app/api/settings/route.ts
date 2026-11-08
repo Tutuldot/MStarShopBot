@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryAll, execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const db = getDb();
-  const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+  const rows = await queryAll<{ key: string; value: string }>('SELECT `key`, `value` FROM settings');
   const settings: Record<string, string> = {};
   for (const r of rows) {
     settings[r.key] = r.value || '';
@@ -24,16 +23,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const db = getDb();
-
-    const upsert = db.prepare(`
-      INSERT INTO settings (key, value) VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `);
 
     for (const [key, value] of Object.entries(body)) {
       if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        upsert.run(key, String(value));
+        await execute(
+          'INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)',
+          [key, String(value)]
+        );
       }
     }
 

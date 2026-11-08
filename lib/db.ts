@@ -1,192 +1,201 @@
-import { DatabaseSync } from 'node:sqlite';
-import path from 'path';
-import fs from 'fs';
+import mysql from 'mysql2/promise';
+import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import crypto from 'crypto';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-const DB_PATH = path.join(DATA_DIR, 'mstarshopbot.db');
-
-// Global singleton to avoid multiple instances across hot reloads in Next.js dev mode
+// Global pool singleton for Next.js dev server hot reload
 declare global {
-  var __mstar_db: DatabaseSync | undefined;
+  var __mysql_pool: Pool | undefined;
+  var __db_initialized: boolean | undefined;
 }
 
-export function getDb(): DatabaseSync {
-  if (!global.__mstar_db) {
-    const db = new DatabaseSync(DB_PATH);
-    
-    // Enable foreign keys and WAL mode for reliability
-    db.exec('PRAGMA foreign_keys = ON;');
-    db.exec('PRAGMA journal_mode = WAL;');
+export function getPool(): Pool {
+  if (!global.__mysql_pool) {
+    global.__mysql_pool = mysql.createPool({
+      host: process.env.MYSQL_HOST || '72.60.86.124',
+      port: Number(process.env.MYSQL_PORT) || 3306,
+      user: process.env.MYSQL_USER || 'u817456591_mstarbot',
+      password: process.env.MYSQL_PASSWORD || 'ZeUQCm&9',
+      database: process.env.MYSQL_DATABASE || 'u817456591_mstarbot',
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+    });
+  }
+  return global.__mysql_pool;
+}
 
-    // Initialize tables
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        salt TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'admin',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+export const getDb = getPool;
 
-      CREATE TABLE IF NOT EXISTS basket_sets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        is_active INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+// Convenient query helper functions
+export async function query<T = any>(sql: string, params: any[] = []): Promise<[T, any]> {
+  const pool = getPool();
+  return (await pool.query(sql, params)) as [T, any];
+}
 
-      CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        basket_set_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        price REAL NOT NULL DEFAULT 0.0,
-        price_max REAL DEFAULT NULL,
-        currency TEXT DEFAULT '$',
-        description TEXT,
-        image_url TEXT,
-        product_url TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (basket_set_id) REFERENCES basket_sets(id) ON DELETE CASCADE
-      );
+export async function queryOne<T = any>(sql: string, params: any[] = []): Promise<T | null> {
+  const pool = getPool();
+  const [rows] = (await pool.query(sql, params)) as [RowDataPacket[], any];
+  return (rows[0] as T) || null;
+}
 
-      CREATE TABLE IF NOT EXISTS conversations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        psid TEXT UNIQUE NOT NULL,
-        customer_name TEXT DEFAULT 'Facebook User',
-        customer_profile_pic TEXT,
-        ai_enabled INTEGER DEFAULT 1,
-        last_message TEXT,
-        last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        unread INTEGER DEFAULT 0
-      );
+export async function queryAll<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  const pool = getPool();
+  const [rows] = (await pool.query(sql, params)) as [RowDataPacket[], any];
+  return rows as T[];
+}
 
-      CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id INTEGER NOT NULL,
-        sender_type TEXT NOT NULL, -- 'customer' | 'bot' | 'agent'
-        text TEXT NOT NULL,
-        product_url TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-      );
+export async function execute(sql: string, params: any[] = []): Promise<ResultSetHeader> {
+  const pool = getPool();
+  const [result] = (await pool.query(sql, params)) as [ResultSetHeader, any];
+  return result;
+}
 
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-      );
+// Ensure database schema and seed default records
+export async function ensureDbInitialized() {
+  if (global.__db_initialized) return;
 
-      CREATE TABLE IF NOT EXISTS webhook_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        method TEXT NOT NULL,
-        source TEXT DEFAULT 'facebook',
-        headers TEXT,
-        query_params TEXT,
-        raw_payload TEXT,
-        status TEXT DEFAULT 'RECEIVED',
-        error_message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+  const pool = getPool();
 
-      CREATE INDEX IF NOT EXISTS idx_webhook_logs_created_at ON webhook_logs(created_at DESC);
-    `);
+  // Create tables if not exists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL,
+      salt VARCHAR(255) NOT NULL,
+      role VARCHAR(50) NOT NULL DEFAULT 'admin',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 
-    // Ensure price_max column exists in products table for existing databases
-    try {
-      db.exec('ALTER TABLE products ADD COLUMN price_max REAL DEFAULT NULL;');
-    } catch {
-      // Column already exists
-    }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS basket_sets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      is_active TINYINT DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 
-    // Seed default admin if none exists
-    const userCountRow = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
-    if (userCountRow.count === 0) {
-      const salt = crypto.randomBytes(16).toString('hex');
-      const hash = crypto.scryptSync('admin123', salt, 64).toString('hex');
-      db.prepare(`
-        INSERT INTO users (name, email, password_hash, salt, role)
-        VALUES (?, ?, ?, ?, ?)
-      `).run('Administrator', 'admin@mstar.com', hash, salt, 'admin');
-    }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      basket_set_id INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+      price_max DECIMAL(12, 2) DEFAULT NULL,
+      currency VARCHAR(10) DEFAULT '$',
+      description TEXT,
+      image_url TEXT,
+      product_url TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (basket_set_id) REFERENCES basket_sets(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 
-    // Seed default settings if empty
-    const settingsMap: Record<string, string> = {
-      fb_page_access_token: '',
-      fb_verify_token: 'mstar_bot_token_secret',
-      fb_page_id: '',
-      fb_app_secret: '',
-      gemini_api_key: '',
-      gemini_model: 'gemini-2.5-flash',
-      system_prompt: 'You are MStar Assistant, a helpful, polite, and enthusiastic sales assistant for our online store. Help customers find products, answer their questions, and share the exact product URLs so they can view and checkout on our website. Always be professional, concise, and friendly.',
-      ai_auto_reply: '1',
-      store_url: 'https://mstarshop.example.com',
-    };
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      psid VARCHAR(128) NOT NULL UNIQUE,
+      customer_name VARCHAR(255) DEFAULT 'Facebook User',
+      customer_profile_pic TEXT,
+      ai_enabled TINYINT DEFAULT 1,
+      last_message TEXT,
+      last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      unread INT DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 
-    const insertSetting = db.prepare(`
-      INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)
-    `);
-    for (const [key, val] of Object.entries(settingsMap)) {
-      insertSetting.run(key, val);
-    }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      conversation_id INT NOT NULL,
+      sender_type VARCHAR(50) NOT NULL,
+      text TEXT NOT NULL,
+      product_url TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 
-    // Seed a sample basket set if empty
-    const basketCount = db.prepare('SELECT COUNT(*) as count FROM basket_sets').get() as { count: number };
-    if (basketCount.count === 0) {
-      const resultSet = db.prepare(`
-        INSERT INTO basket_sets (name, description, is_active)
-        VALUES (?, ?, 1)
-      `).run('Hot Deals & Best Sellers', 'Featured active promotional collection for Messenger customers');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      \`key\` VARCHAR(128) PRIMARY KEY,
+      \`value\` TEXT
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 
-      const setId = resultSet.lastInsertRowid;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS webhook_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      method VARCHAR(20) NOT NULL,
+      source VARCHAR(50) DEFAULT 'facebook',
+      headers TEXT,
+      query_params TEXT,
+      raw_payload MEDIUMTEXT,
+      status VARCHAR(50) DEFAULT 'RECEIVED',
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_webhook_logs_created_at (created_at DESC)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
 
-      const insertProduct = db.prepare(`
-        INSERT INTO products (basket_set_id, name, price, currency, description, image_url, product_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      insertProduct.run(
-        setId,
-        'Premium Cotton Crewneck T-Shirt',
-        24.99,
-        '$',
-        '100% organic breathable cotton, available in black, navy, and white.',
-        'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop',
-        'https://mstarshop.example.com/products/premium-cotton-tee.php'
-      );
-
-      insertProduct.run(
-        setId,
-        'Wireless Noise Cancelling Earbuds',
-        59.99,
-        '$',
-        'Crystal clear audio with 28-hour battery life and fast USB-C charging.',
-        'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&auto=format&fit=crop',
-        'https://mstarshop.example.com/products/wireless-earbuds.php'
-      );
-
-      insertProduct.run(
-        setId,
-        'Minimalist Leather Cardholder Wallet',
-        19.50,
-        '$',
-        'Slim RFID-blocking genuine leather wallet with 6 card slots.',
-        'https://images.unsplash.com/photo-1627123424574-724758594e93?w=500&auto=format&fit=crop',
-        'https://mstarshop.example.com/products/leather-wallet.php'
-      );
-    }
-
-    global.__mstar_db = db;
+  // Seed default admin user if none exists
+  const [userRows]: any = await pool.query('SELECT COUNT(*) as count FROM users');
+  if (userRows[0]?.count === 0) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync('admin123', salt, 64).toString('hex');
+    await pool.query(
+      'INSERT INTO users (name, email, password_hash, salt, role) VALUES (?, ?, ?, ?, ?)',
+      ['Administrator', 'admin@mstar.com', hash, salt, 'admin']
+    );
   }
 
-  return global.__mstar_db;
+  // Seed default settings if empty
+  const defaultSettings: Record<string, string> = {
+    fb_page_access_token: '',
+    fb_verify_token: 'mstar_bot_token_secret',
+    fb_page_id: '104217771726746',
+    fb_app_secret: '',
+    gemini_api_key: '',
+    gemini_model: 'gemini-2.5-flash',
+    system_prompt: 'You are MStar Assistant, a helpful, polite, and enthusiastic sales assistant for our online store. Help customers find products, answer their questions, and share the exact product URLs so they can view and checkout on our website. Always be professional, concise, and friendly.',
+    ai_auto_reply: '1',
+    store_url: 'https://www.missmorningstar.com',
+  };
+
+  for (const [k, v] of Object.entries(defaultSettings)) {
+    await pool.query(
+      'INSERT IGNORE INTO settings (`key`, `value`) VALUES (?, ?)',
+      [k, v]
+    );
+  }
+
+  // Seed a sample basket set if empty
+  const [basketRows]: any = await pool.query('SELECT COUNT(*) as count FROM basket_sets');
+  if (basketRows[0]?.count === 0) {
+    const [bResult]: any = await pool.query(
+      'INSERT INTO basket_sets (name, description, is_active) VALUES (?, ?, 1)',
+      ['Hot Deals & Best Sellers', 'Featured active promotional collection for Messenger customers']
+    );
+    const setId = bResult.insertId;
+
+    await pool.query(
+      `INSERT INTO products (basket_set_id, name, price, currency, description, image_url, product_url) VALUES 
+       (?, 'Premium Cotton Crewneck T-Shirt', 24.99, '$', '100% organic breathable cotton, available in black, navy, and white.', 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop', 'https://mstarshop.example.com/products/premium-cotton-tee.php'),
+       (?, 'Wireless Noise Cancelling Earbuds', 59.99, '$', 'Crystal clear audio with 28-hour battery life and fast USB-C charging.', 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&auto=format&fit=crop', 'https://mstarshop.example.com/products/wireless-earbuds.php'),
+       (?, 'Minimalist Leather Cardholder Wallet', 19.50, '$', 'Slim RFID-blocking genuine leather wallet with 6 card slots.', 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=500&auto=format&fit=crop', 'https://mstarshop.example.com/products/leather-wallet.php')
+      `,
+      [setId, setId, setId]
+    );
+  }
+
+  global.__db_initialized = true;
 }
 
 export function formatProductPrice(price: number, priceMax?: number | null, currency = '$'): string {
@@ -200,31 +209,36 @@ export function formatProductPrice(price: number, priceMax?: number | null, curr
   return `${curr}${pMin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function getActiveBasketProducts() {
-  const db = getDb();
-  const activeSet = db.prepare('SELECT * FROM basket_sets WHERE is_active = 1 LIMIT 1').get() as { id: number; name: string } | undefined;
+export async function getActiveBasketProducts(): Promise<{ activeSet: any | null; products: any[] }> {
+  await ensureDbInitialized();
+  const pool = getPool();
+  const [setRows]: any = await pool.query('SELECT * FROM basket_sets WHERE is_active = 1 LIMIT 1');
+  const activeSet = setRows[0] || null;
   if (!activeSet) {
     return { activeSet: null, products: [] };
   }
-  const products = db.prepare('SELECT * FROM products WHERE basket_set_id = ? ORDER BY id ASC').all(activeSet.id);
+  const [products]: any = await pool.query('SELECT * FROM products WHERE basket_set_id = ? ORDER BY id ASC', [activeSet.id]);
   return { activeSet, products };
 }
 
-export function activateBasketSet(setId: number) {
-  const db = getDb();
-  // Constraint: Only 1 basket set can be activated at a time
-  db.exec('BEGIN TRANSACTION;');
+export async function activateBasketSet(setId: number): Promise<void> {
+  await ensureDbInitialized();
+  const pool = getPool();
+  const conn = await pool.getConnection();
   try {
-    db.prepare('UPDATE basket_sets SET is_active = 0').run();
-    db.prepare('UPDATE basket_sets SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(setId);
-    db.exec('COMMIT;');
+    await conn.beginTransaction();
+    await conn.query('UPDATE basket_sets SET is_active = 0');
+    await conn.query('UPDATE basket_sets SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [setId]);
+    await conn.commit();
   } catch (err) {
-    db.exec('ROLLBACK;');
+    await conn.rollback();
     throw err;
+  } finally {
+    conn.release();
   }
 }
 
-export function logRawWebhook(data: {
+export async function logRawWebhook(data: {
   method: string;
   source?: string;
   headers?: Record<string, string> | string;
@@ -232,61 +246,63 @@ export function logRawWebhook(data: {
   rawPayload?: string;
   status?: string;
   errorMessage?: string;
-}): number {
+}): Promise<number> {
   try {
-    const db = getDb();
+    await ensureDbInitialized();
+    const pool = getPool();
     const headersStr = typeof data.headers === 'object' ? JSON.stringify(data.headers) : (data.headers || null);
     const queryStr = typeof data.queryParams === 'object' ? JSON.stringify(data.queryParams) : (data.queryParams || null);
 
-    const stmt = db.prepare(`
-      INSERT INTO webhook_logs (method, source, headers, query_params, raw_payload, status, error_message)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
-      data.method,
-      data.source || 'facebook',
-      headersStr,
-      queryStr,
-      data.rawPayload || null,
-      data.status || 'RECEIVED',
-      data.errorMessage || null
+    const [result]: any = await pool.query(
+      `INSERT INTO webhook_logs (method, source, headers, query_params, raw_payload, status, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.method,
+        data.source || 'facebook',
+        headersStr,
+        queryStr,
+        data.rawPayload || null,
+        data.status || 'RECEIVED',
+        data.errorMessage || null,
+      ]
     );
 
-    return Number(result.lastInsertRowid);
+    return Number(result.insertId);
   } catch (err) {
-    console.error('[DB] Failed to log raw webhook:', err);
+    console.error('[MySQL] Failed to log raw webhook:', err);
     return -1;
   }
 }
 
-export function updateWebhookLogStatus(id: number, status: string, errorMessage?: string) {
+export async function updateWebhookLogStatus(id: number, status: string, errorMessage?: string): Promise<void> {
   if (id <= 0) return;
   try {
-    const db = getDb();
-    db.prepare(`
-      UPDATE webhook_logs
-      SET status = ?, error_message = coalesce(?, error_message)
-      WHERE id = ?
-    `).run(status, errorMessage || null, id);
+    const pool = getPool();
+    await pool.query(
+      `UPDATE webhook_logs
+       SET status = ?, error_message = COALESCE(?, error_message)
+       WHERE id = ?`,
+      [status, errorMessage || null, id]
+    );
   } catch (err) {
-    console.error('[DB] Failed to update webhook log status:', err);
+    console.error('[MySQL] Failed to update webhook log status:', err);
   }
 }
 
-export function getWebhookLogs(limit = 50, offset = 0) {
-  const db = getDb();
-  const logs = db.prepare(`
-    SELECT * FROM webhook_logs
-    ORDER BY id DESC
-    LIMIT ? OFFSET ?
-  `).all(limit, offset);
+export async function getWebhookLogs(limit = 50, offset = 0): Promise<{ logs: any[]; total: number }> {
+  await ensureDbInitialized();
+  const pool = getPool();
+  const [logs]: any = await pool.query(
+    'SELECT * FROM webhook_logs ORDER BY id DESC LIMIT ? OFFSET ?',
+    [Number(limit), Number(offset)]
+  );
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM webhook_logs').get() as { count: number };
-  return { logs, total: total.count };
+  const [countRows]: any = await pool.query('SELECT COUNT(*) as count FROM webhook_logs');
+  return { logs, total: Number(countRows[0]?.count || 0) };
 }
 
-export function clearWebhookLogs() {
-  const db = getDb();
-  db.exec('DELETE FROM webhook_logs;');
+export async function clearWebhookLogs(): Promise<void> {
+  await ensureDbInitialized();
+  const pool = getPool();
+  await pool.query('DELETE FROM webhook_logs');
 }

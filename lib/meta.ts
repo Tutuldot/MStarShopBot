@@ -1,8 +1,7 @@
-import { getDb, formatProductPrice } from './db';
+import { queryAll, formatProductPrice } from './db';
 
-export function getMetaSettings() {
-  const db = getDb();
-  const rows = db.prepare("SELECT key, value FROM settings WHERE key LIKE 'fb_%' OR key LIKE 'webhook_%'").all() as { key: string; value: string }[];
+export async function getMetaSettings() {
+  const rows = await queryAll<{ key: string; value: string }>("SELECT `key`, `value` FROM settings WHERE `key` LIKE 'fb_%' OR `key` LIKE 'webhook_%'");
   const map: Record<string, string> = {};
   for (const r of rows) {
     map[r.key] = r.value || '';
@@ -17,7 +16,7 @@ export function getMetaSettings() {
 }
 
 export async function sendMetaTextMessage(psid: string, text: string): Promise<{ success: boolean; error?: string }> {
-  const { pageAccessToken } = getMetaSettings();
+  const { pageAccessToken } = await getMetaSettings();
   if (!pageAccessToken) {
     return { success: false, error: 'Facebook Page Access Token is not configured in Settings.' };
   }
@@ -55,7 +54,7 @@ export async function sendMetaProductCard(psid: string, product: {
   image_url?: string;
   product_url: string;
 }): Promise<{ success: boolean; error?: string }> {
-  const { pageAccessToken } = getMetaSettings();
+  const { pageAccessToken } = await getMetaSettings();
   if (!pageAccessToken) {
     return { success: false, error: 'Facebook Page Access Token is not configured in Settings.' };
   }
@@ -118,7 +117,7 @@ export async function sendMetaProductCard(psid: string, product: {
 }
 
 export async function fetchMetaUserProfile(psid: string): Promise<{ name: string; profile_pic?: string } | null> {
-  const { pageAccessToken } = getMetaSettings();
+  const { pageAccessToken } = await getMetaSettings();
   if (!pageAccessToken) return null;
 
   try {

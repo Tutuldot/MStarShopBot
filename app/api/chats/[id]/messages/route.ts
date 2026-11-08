@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryOne, execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { sendMetaTextMessage } from '@/lib/meta';
 
@@ -18,24 +18,23 @@ export async function POST(
       return NextResponse.json({ error: 'Message text is required' }, { status: 400 });
     }
 
-    const db = getDb();
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(id)) as any;
+    const conv = await queryOne<any>('SELECT * FROM conversations WHERE id = ?', [Number(id)]);
     if (!conv) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
     // 1. Record agent message in database
-    const res = db.prepare(`
+    const res = await execute(`
       INSERT INTO messages (conversation_id, sender_type, text)
       VALUES (?, 'agent', ?)
-    `).run(conv.id, text.trim());
+    `, [conv.id, text.trim()]);
 
     // Update conversation last message
-    db.prepare(`
+    await execute(`
       UPDATE conversations
       SET last_message = ?, last_message_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(text.trim(), conv.id);
+    `, [text.trim(), conv.id]);
 
     // 2. Deliver message to Facebook Messenger if not a local test simulation
     let metaResult = { success: true, delivered: false };
@@ -49,7 +48,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      messageId: res.lastInsertRowid,
+      messageId: res.insertId,
       metaDelivery: metaResult,
     });
   } catch (err: any) {

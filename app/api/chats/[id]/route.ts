@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryOne, queryAll, execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function GET(
@@ -10,21 +10,20 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const db = getDb();
 
-  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(id));
+  const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [Number(id)]);
   if (!conversation) {
     return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
   }
 
   // Mark unread as 0 when viewed
-  db.prepare('UPDATE conversations SET unread = 0 WHERE id = ?').run(Number(id));
+  await execute('UPDATE conversations SET unread = 0 WHERE id = ?', [Number(id)]);
 
-  const messages = db.prepare(`
+  const messages = await queryAll(`
     SELECT * FROM messages
     WHERE conversation_id = ?
     ORDER BY id ASC
-  `).all(Number(id));
+  `, [Number(id)]);
 
   return NextResponse.json({ conversation, messages });
 }

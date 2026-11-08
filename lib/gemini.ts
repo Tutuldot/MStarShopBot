@@ -1,17 +1,17 @@
-import { getDb, getActiveBasketProducts, formatProductPrice } from './db';
+import { queryAll, getActiveBasketProducts, formatProductPrice } from './db';
 
-export function getGeminiSettings() {
-  const db = getDb();
-  const apiKeyRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get() as { value: string } | undefined;
-  const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_model'").get() as { value: string } | undefined;
-  const promptRow = db.prepare("SELECT value FROM settings WHERE key = 'system_prompt'").get() as { value: string } | undefined;
-  const autoReplyRow = db.prepare("SELECT value FROM settings WHERE key = 'ai_auto_reply'").get() as { value: string } | undefined;
+export async function getGeminiSettings() {
+  const rows = await queryAll<{ key: string; value: string }>("SELECT `key`, `value` FROM settings WHERE `key` IN ('gemini_api_key', 'gemini_model', 'system_prompt', 'ai_auto_reply')");
+  const map: Record<string, string> = {};
+  for (const r of rows) {
+    map[r.key] = r.value || '';
+  }
 
   return {
-    apiKey: apiKeyRow?.value || process.env.GEMINI_API_KEY || '',
-    model: modelRow?.value || process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    systemPrompt: promptRow?.value || 'You are MStar Assistant, a helpful sales representative for our store.',
-    aiAutoReply: (autoReplyRow?.value ?? '1') === '1',
+    apiKey: map.gemini_api_key || process.env.GEMINI_API_KEY || '',
+    model: map.gemini_model || process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    systemPrompt: map.system_prompt || 'You are MStar Assistant, a helpful sales representative for our store.',
+    aiAutoReply: (map.ai_auto_reply ?? '1') === '1',
   };
 }
 
@@ -19,14 +19,14 @@ export async function generateGeminiChatReply(
   userMessage: string,
   history: { sender_type: string; text: string }[] = []
 ): Promise<string> {
-  const { apiKey, model, systemPrompt } = getGeminiSettings();
+  const { apiKey, model, systemPrompt } = await getGeminiSettings();
 
   if (!apiKey) {
     return "Thank you for messaging us! Our automated assistant is currently getting set up. A human agent will get back to you shortly.";
   }
 
   // Get active product basket to inject into prompt
-  const { activeSet, products } = getActiveBasketProducts();
+  const { activeSet, products } = await getActiveBasketProducts();
 
   let productsContext = "No active product catalog set at this moment.";
   if (activeSet && products.length > 0) {

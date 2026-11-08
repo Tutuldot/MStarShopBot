@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function POST(
@@ -23,11 +23,10 @@ export async function POST(
     const minPrice = parseFloat(price) || 0.0;
     const maxPrice = price_max != null && parseFloat(price_max) > minPrice ? parseFloat(price_max) : null;
 
-    const db = getDb();
-    const result = db.prepare(`
+    const result = await execute(`
       INSERT INTO products (basket_set_id, name, price, price_max, currency, description, image_url, product_url)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `, [
       Number(id),
       name.trim(),
       minPrice,
@@ -36,9 +35,9 @@ export async function POST(
       description || '',
       image_url || '',
       product_url.trim()
-    );
+    ]);
 
-    return NextResponse.json({ success: true, id: result.lastInsertRowid });
+    return NextResponse.json({ success: true, id: result.insertId });
   } catch (err: any) {
     console.error('Add product error:', err);
     return NextResponse.json({ error: 'Failed to add product' }, { status: 500 });

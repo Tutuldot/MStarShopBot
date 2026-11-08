@@ -1,8 +1,8 @@
-import { getDb, logRawWebhook, getWebhookLogs } from './lib/db.ts';
+import { queryOne, queryAll, execute, logRawWebhook, getWebhookLogs, ensureDbInitialized, getPool } from './lib/db.ts';
 
 async function runTests() {
   console.log('=============================================');
-  console.log('   MStarShopBot Deployment & Webhook Test    ');
+  console.log('   MStarShopBot MySQL Database & App Test   ');
   console.log('=============================================');
 
   let passed = 0;
@@ -18,23 +18,23 @@ async function runTests() {
     }
   }
 
-  const db = getDb();
+  await ensureDbInitialized();
 
   // Test 1: Verify Token Configuration
-  const verifyTokenRow = db.prepare("SELECT value FROM settings WHERE key = 'fb_verify_token'").get();
+  const verifyTokenRow = await queryOne("SELECT `value` FROM settings WHERE `key` = 'fb_verify_token'");
   const verifyToken = verifyTokenRow?.value || 'mstar_bot_token_secret';
   assert(!!verifyToken, `Meta Verify Token configured: "${verifyToken}"`);
 
   // Test 2: Gemini API Configuration
-  const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_model'").get();
+  const modelRow = await queryOne("SELECT `value` FROM settings WHERE `key` = 'gemini_model'");
   const geminiModel = modelRow?.value || 'gemini-2.5-flash';
   assert(geminiModel === 'gemini-2.5-flash', `Gemini model is set to ${geminiModel}`);
 
   // Test 3: Active Product Basket
-  const activeSet = db.prepare('SELECT * FROM basket_sets WHERE is_active = 1').get();
+  const activeSet = await queryOne('SELECT * FROM basket_sets WHERE is_active = 1');
   assert(!!activeSet, `Active basket set exists: "${activeSet?.name}" (ID: ${activeSet?.id})`);
 
-  const products = db.prepare('SELECT * FROM products WHERE basket_set_id = ?').all(activeSet?.id);
+  const products = await queryAll('SELECT * FROM products WHERE basket_set_id = ?', [activeSet?.id]);
   assert(products.length > 0, `Active basket has ${products.length} products ready for recommendations`);
   for (const p of products) {
     assert(!!p.product_url && !!p.name, `Product "${p.name}" has valid target URL: ${p.product_url}`);
@@ -48,13 +48,13 @@ async function runTests() {
   const isVerified = mode === 'subscribe' && token === verifyToken;
   assert(isVerified, 'GET Challenge verification matches expected subscribe mode and verify token');
 
-  const getLogId = logRawWebhook({
+  const getLogId = await logRawWebhook({
     method: 'GET',
     source: 'facebook',
     queryParams: { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge },
     status: isVerified ? 'VERIFICATION_SUCCESS' : 'VERIFICATION_FAILED',
   });
-  assert(getLogId > 0, `Raw GET challenge verification successfully logged to SQLite (Log ID: ${getLogId})`);
+  assert(getLogId > 0, `Raw GET challenge verification successfully logged to MySQL (Log ID: ${getLogId})`);
 
   // Test 5: Webhook POST Incoming Customer Message Event Simulation
   const mockPsid = `customer_test_${Date.now()}`;
@@ -80,7 +80,7 @@ async function runTests() {
     ]
   });
 
-  const postLogId = logRawWebhook({
+  const postLogId = await logRawWebhook({
     method: 'POST',
     source: 'facebook',
     headers: {
@@ -97,33 +97,36 @@ async function runTests() {
   const parsed = JSON.parse(rawFacebookJson);
   const event = parsed.entry[0].messaging[0];
 
-  const convRes = db.prepare(`
+  const convRes = await execute(`
     INSERT INTO conversations (psid, customer_name, last_message, unread)
     VALUES (?, ?, ?, 1)
-  `).run(event.sender.id, `User ${mockPsid.slice(-4)}`, event.message.text);
+  `, [event.sender.id, `User ${mockPsid.slice(-4)}`, event.message.text]);
 
-  const convId = convRes.lastInsertRowid;
-  assert(Number(convId) > 0, `Conversation created for PSID ${mockPsid}`);
+  const convId = convRes.insertId;
+  assert(Number(convId) > 0, `Conversation created in MySQL for PSID ${mockPsid}`);
 
-  const msgRes = db.prepare(`
+  const msgRes = await execute(`
     INSERT INTO messages (conversation_id, sender_type, text)
     VALUES (?, 'customer', ?)
-  `).run(convId, event.message.text);
-  assert(Number(msgRes.lastInsertRowid) > 0, 'Customer message saved in messages table');
+  `, [convId, event.message.text]);
+  assert(Number(msgRes.insertId) > 0, 'Customer message saved in MySQL messages table');
 
   // Test 7: Retrieve and inspect webhook_logs table
-  const { logs, total } = getWebhookLogs(10);
+  const { logs, total } = await getWebhookLogs(10);
   assert(total >= 2, `Webhook logs counter shows ${total} total logged requests`);
   const latestPost = logs.find((l) => l.id === postLogId);
-  assert(!!latestPost && latestPost.raw_payload === rawFacebookJson, 'Retrieved raw payload from database exactly matches original JSON byte-for-byte');
+  assert(!!latestPost && latestPost.raw_payload === rawFacebookJson, 'Retrieved raw payload from MySQL exactly matches original JSON byte-for-byte');
 
   // Test 8: Admin Authentication and Users
-  const adminUser = db.prepare("SELECT id, name, email, role FROM users WHERE role = 'admin'").get();
-  assert(!!adminUser, `Admin account present: ${adminUser?.email} (${adminUser?.name})`);
+  const adminUser = await queryOne("SELECT id, name, email, role FROM users WHERE role = 'admin'");
+  assert(!!adminUser, `Admin account present in MySQL: ${adminUser?.email} (${adminUser?.name})`);
 
   console.log('=============================================');
   console.log(`Test Summary: ${passed} PASSED, ${failed} FAILED`);
   console.log('=============================================');
+
+  // Close pool gracefully
+  await getPool().end();
 
   if (failed > 0) process.exit(1);
 }
@@ -132,4 +135,3 @@ runTests().catch(err => {
   console.error('Fatal test error:', err);
   process.exit(1);
 });
-

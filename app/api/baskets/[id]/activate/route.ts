@@ -11,7 +11,7 @@ export async function POST(
 
   const { id } = await params;
   try {
-    activateBasketSet(Number(id));
+    await activateBasketSet(Number(id));
     return NextResponse.json({ success: true, message: `Basket set #${id} is now the active set` });
   } catch (err: any) {
     console.error('Activation error:', err);

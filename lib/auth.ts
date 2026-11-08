@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
-import { getDb } from './db';
+import { queryOne } from './db';
 
 const SESSION_COOKIE_NAME = 'mstar_session';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'mstar_secret_key_928374829374928374';
@@ -54,8 +54,7 @@ export async function getSession(): Promise<UserSession | null> {
   const session = verifyToken<{ userId: number }>(token);
   if (!session?.userId) return null;
 
-  const db = getDb();
-  const user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(session.userId) as UserSession | undefined;
+  const user = await queryOne<UserSession>('SELECT id, name, email, role FROM users WHERE id = ?', [session.userId]);
   return user || null;
 }
 

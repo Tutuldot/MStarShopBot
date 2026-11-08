@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function PUT(
@@ -23,12 +23,11 @@ export async function PUT(
     const minPrice = parseFloat(price) || 0.0;
     const maxPrice = price_max != null && parseFloat(price_max) > minPrice ? parseFloat(price_max) : null;
 
-    const db = getDb();
-    db.prepare(`
+    await execute(`
       UPDATE products
       SET name = ?, price = ?, price_max = ?, currency = ?, description = ?, image_url = ?, product_url = ?
       WHERE id = ?
-    `).run(
+    `, [
       name.trim(),
       minPrice,
       maxPrice,
@@ -37,7 +36,7 @@ export async function PUT(
       image_url || '',
       product_url.trim(),
       Number(id)
-    );
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
@@ -53,7 +52,6 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const db = getDb();
-  db.prepare('DELETE FROM products WHERE id = ?').run(Number(id));
+  await execute('DELETE FROM products WHERE id = ?', [Number(id)]);
   return NextResponse.json({ success: true });
 }

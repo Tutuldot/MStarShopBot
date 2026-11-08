@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryOne, execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { sendMetaProductCard } from '@/lib/meta';
 
@@ -13,14 +13,13 @@ export async function POST(
   const { id } = await params;
   try {
     const { productId } = await req.json();
-    const db = getDb();
 
-    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(id)) as any;
+    const conv = await queryOne<any>('SELECT * FROM conversations WHERE id = ?', [Number(id)]);
     if (!conv) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(productId)) as any;
+    const product = await queryOne<any>('SELECT * FROM products WHERE id = ?', [Number(productId)]);
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
@@ -28,16 +27,16 @@ export async function POST(
     const cardSummaryText = `Recommended Product: ${product.name} (${product.currency || '$'}${product.price})\n${product.product_url}`;
 
     // Record agent action in chat history
-    db.prepare(`
+    await execute(`
       INSERT INTO messages (conversation_id, sender_type, text, product_url)
       VALUES (?, 'agent', ?, ?)
-    `).run(conv.id, cardSummaryText, product.product_url);
+    `, [conv.id, cardSummaryText, product.product_url]);
 
-    db.prepare(`
+    await execute(`
       UPDATE conversations
       SET last_message = ?, last_message_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(cardSummaryText, conv.id);
+    `, [cardSummaryText, conv.id]);
 
     // Send Facebook Generic Template Card to customer
     if (!conv.psid.startsWith('sim_')) {

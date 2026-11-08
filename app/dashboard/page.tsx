@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { getDb, getActiveBasketProducts, formatProductPrice } from '@/lib/db';
+import { queryOne, queryAll, getActiveBasketProducts, formatProductPrice } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import WebhookQuickCard from '@/components/WebhookQuickCard';
@@ -24,20 +24,19 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const db = getDb();
-  const { activeSet, products } = getActiveBasketProducts();
+  const { activeSet, products } = await getActiveBasketProducts();
 
-  const totalConversations = db.prepare('SELECT COUNT(*) as count FROM conversations').get() as { count: number };
-  const unreadConversations = db.prepare('SELECT COUNT(*) as count FROM conversations WHERE unread > 0').get() as { count: number };
-  const totalBaskets = db.prepare('SELECT COUNT(*) as count FROM basket_sets').get() as { count: number };
+  const totalConversations = (await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM conversations')) || { count: 0 };
+  const unreadConversations = (await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM conversations WHERE unread > 0')) || { count: 0 };
+  const totalBaskets = (await queryOne<{ count: number }>('SELECT COUNT(*) as count FROM basket_sets')) || { count: 0 };
 
-  const metaTokenRow = db.prepare("SELECT value FROM settings WHERE key = 'fb_page_access_token'").get() as { value: string } | undefined;
-  const geminiKeyRow = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get() as { value: string } | undefined;
-  const aiAutoReplyRow = db.prepare("SELECT value FROM settings WHERE key = 'ai_auto_reply'").get() as { value: string } | undefined;
-  const verifyTokenRow = db.prepare("SELECT value FROM settings WHERE key = 'fb_verify_token'").get() as { value: string } | undefined;
-  const callbackUrlRow = db.prepare("SELECT value FROM settings WHERE key = 'webhook_callback_url'").get() as { value: string } | undefined;
-  const lastVerifiedRow = db.prepare("SELECT value FROM settings WHERE key = 'last_webhook_verified_at'").get() as { value: string } | undefined;
-  const lastEventRow = db.prepare("SELECT value FROM settings WHERE key = 'last_webhook_event_at'").get() as { value: string } | undefined;
+  const metaTokenRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'fb_page_access_token'");
+  const geminiKeyRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'gemini_api_key'");
+  const aiAutoReplyRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'ai_auto_reply'");
+  const verifyTokenRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'fb_verify_token'");
+  const callbackUrlRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'webhook_callback_url'");
+  const lastVerifiedRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'last_webhook_verified_at'");
+  const lastEventRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'last_webhook_event_at'");
 
   const isMetaConfigured = !!metaTokenRow?.value;
   const isGeminiConfigured = !!geminiKeyRow?.value;
@@ -56,10 +55,10 @@ export default async function DashboardPage() {
   const effectiveVerifyToken = verifyTokenRow?.value || 'mstar_bot_token_secret';
 
   // Recent 5 conversations
-  const recentChats = db.prepare(`
+  const recentChats = await queryAll(`
     SELECT * FROM conversations
     ORDER BY last_message_at DESC LIMIT 5
-  `).all() as any[];
+  `);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">

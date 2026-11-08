@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
 
   try {
-    const { logs, total } = getWebhookLogs(limit, offset);
+    const { logs, total } = await getWebhookLogs(limit, offset);
     return NextResponse.json({ success: true, logs, total });
   } catch (err: any) {
     console.error('Fetch webhook logs error:', err);
@@ -28,7 +28,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    clearWebhookLogs();
+    await clearWebhookLogs();
     return NextResponse.json({ success: true, message: 'Webhook logs cleared' });
   } catch (err: any) {
     console.error('Clear webhook logs error:', err);

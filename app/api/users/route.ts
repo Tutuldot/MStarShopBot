@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryAll, queryOne, execute } from '@/lib/db';
 import { getSession, hashPassword } from '@/lib/auth';
 
 // GET all users
@@ -9,8 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const db = getDb();
-  const users = db.prepare('SELECT id, name, email, role, created_at FROM users ORDER BY id ASC').all();
+  const users = await queryAll('SELECT id, name, email, role, created_at FROM users ORDER BY id ASC');
   return NextResponse.json({ users });
 }
 
@@ -29,10 +28,9 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const db = getDb();
 
     // Check if email already exists
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
+    const existing = await queryOne('SELECT id FROM users WHERE email = ?', [cleanEmail]);
     if (existing) {
       return NextResponse.json({ error: 'A user with this email already exists' }, { status: 400 });
     }
@@ -40,15 +38,15 @@ export async function POST(req: NextRequest) {
     const { hash, salt } = hashPassword(password);
     const assignedRole = role === 'staff' ? 'staff' : 'admin';
 
-    const result = db.prepare(`
+    const result = await execute(`
       INSERT INTO users (name, email, password_hash, salt, role)
       VALUES (?, ?, ?, ?, ?)
-    `).run(name.trim(), cleanEmail, hash, salt, assignedRole);
+    `, [name.trim(), cleanEmail, hash, salt, assignedRole]);
 
     return NextResponse.json({
       success: true,
       user: {
-        id: result.lastInsertRowid,
+        id: result.insertId,
         name: name.trim(),
         email: cleanEmail,
         role: assignedRole,
@@ -78,16 +76,15 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
   }
 
-  const db = getDb();
   // Ensure we don't delete the last admin
-  const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as { count: number };
-  const targetUser = db.prepare('SELECT role FROM users WHERE id = ?').get(id) as { role: string } | undefined;
+  const adminCount = await queryOne<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE role = 'admin'");
+  const targetUser = await queryOne<{ role: string }>('SELECT role FROM users WHERE id = ?', [id]);
 
-  if (targetUser?.role === 'admin' && adminCount.count <= 1) {
+  if (targetUser?.role === 'admin' && (adminCount?.count ?? 0) <= 1) {
     return NextResponse.json({ error: 'Cannot delete the only remaining admin' }, { status: 400 });
   }
 
-  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  await execute('DELETE FROM users WHERE id = ?', [id]);
   return NextResponse.json({ success: true });
 }
 
@@ -104,14 +101,11 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    const db = getDb();
     if (password && password.trim().length > 0) {
       const { hash, salt } = hashPassword(password);
-      db.prepare('UPDATE users SET name = ?, role = ?, password_hash = ?, salt = ? WHERE id = ?')
-        .run(name, role, hash, salt, id);
+      await execute('UPDATE users SET name = ?, role = ?, password_hash = ?, salt = ? WHERE id = ?', [name, role, hash, salt, id]);
     } else {
-      db.prepare('UPDATE users SET name = ?, role = ? WHERE id = ?')
-        .run(name, role, id);
+      await execute('UPDATE users SET name = ?, role = ? WHERE id = ?', [name, role, id]);
     }
 
     return NextResponse.json({ success: true });

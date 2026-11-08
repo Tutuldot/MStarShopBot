@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { queryOne } from '@/lib/db';
 import { getMetaSettings } from '@/lib/meta';
 
 export async function GET(req: NextRequest) {
-  const { verifyToken, callbackUrl } = getMetaSettings();
-  const db = getDb();
+  const { verifyToken, callbackUrl } = await getMetaSettings();
 
-  const lastVerifiedRow = db.prepare("SELECT value FROM settings WHERE key = 'last_webhook_verified_at'").get() as { value: string } | undefined;
-  const lastEventRow = db.prepare("SELECT value FROM settings WHERE key = 'last_webhook_event_at'").get() as { value: string } | undefined;
+  const lastVerifiedRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'last_webhook_verified_at'");
+  const lastEventRow = await queryOne<{ value: string }>("SELECT `value` FROM settings WHERE `key` = 'last_webhook_event_at'");
 
   // Perform self-test challenge
   const testChallenge = `test_challenge_${Math.random().toString(36).substring(2, 10)}`;
@@ -35,4 +34,3 @@ export async function GET(req: NextRequest) {
     },
   });
 }
-
