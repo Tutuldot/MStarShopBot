@@ -9,7 +9,7 @@ export async function getGeminiSettings() {
 
   return {
     apiKey: map.gemini_api_key || process.env.GEMINI_API_KEY || '',
-    model: map.gemini_model || process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    model: map.gemini_model || process.env.GEMINI_MODEL || 'gemini-3.5-flash',
     systemPrompt: map.system_prompt || 'You are MStar Assistant, a helpful sales representative for our store.',
     aiAutoReply: (map.ai_auto_reply ?? '1') === '1',
   };
@@ -79,7 +79,10 @@ ${productsContext}`;
           },
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 500,
+            maxOutputTokens: 2048,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
           },
         }),
       }
@@ -91,9 +94,10 @@ ${productsContext}`;
       return "Thank you for reaching out! We are currently checking your request and will reply shortly.";
     }
 
-    const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (candidate) {
-      return candidate.trim();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const textPart = parts.find((p: any) => p.text && !p.thought) || parts[0];
+    if (textPart?.text) {
+      return textPart.text.trim();
     }
 
     return "Thank you for your message! How can we assist you with our store today?";

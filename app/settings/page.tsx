@@ -571,9 +571,9 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, gemini_model: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-500"
                 >
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fast, low-cost, recommended for Messenger)</option>
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                  <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep reasoning)</option>
+                  <option value="gemini-3.5-flash">Gemini 3.5 Flash (Recommended: Fast, highly capable, product-aware)</option>
+                  <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Ultra fast, lightweight)</option>
+                  <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Sub-second response)</option>
                 </select>
               </div>
 

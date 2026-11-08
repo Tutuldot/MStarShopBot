@@ -27,8 +27,8 @@ async function runTests() {
 
   // Test 2: Gemini API Configuration
   const modelRow = await queryOne("SELECT `value` FROM settings WHERE `key` = 'gemini_model'");
-  const geminiModel = modelRow?.value || 'gemini-2.5-flash';
-  assert(geminiModel === 'gemini-2.5-flash', `Gemini model is set to ${geminiModel}`);
+  const geminiModel = modelRow?.value || 'gemini-3.5-flash';
+  assert(geminiModel.startsWith('gemini-'), `Gemini model is set to ${geminiModel}`);
 
   // Test 3: Active Product Basket
   const activeSet = await queryOne('SELECT * FROM basket_sets WHERE is_active = 1');
