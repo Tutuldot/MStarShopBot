@@ -1,7 +1,9 @@
 import { queryAll, getActiveBasketProducts, formatProductPrice } from './db';
 
 export async function getGeminiSettings() {
-  const rows = await queryAll<{ key: string; value: string }>("SELECT `key`, `value` FROM settings WHERE `key` IN ('gemini_api_key', 'gemini_model', 'system_prompt', 'ai_auto_reply')");
+  const rows = await queryAll<{ key: string; value: string }>(
+    "SELECT `key`, `value` FROM settings WHERE `key` IN ('gemini_api_key', 'gemini_model', 'system_prompt', 'ai_auto_reply', 'dev_whitelist_enabled', 'dev_whitelist_names')"
+  );
   const map: Record<string, string> = {};
   for (const r of rows) {
     map[r.key] = r.value || '';
@@ -12,7 +14,38 @@ export async function getGeminiSettings() {
     model: map.gemini_model || process.env.GEMINI_MODEL || 'gemini-3.5-flash',
     systemPrompt: map.system_prompt || 'You are MStar Assistant, a helpful sales representative for our store.',
     aiAutoReply: (map.ai_auto_reply ?? '1') === '1',
+    devWhitelistEnabled: (map.dev_whitelist_enabled ?? '1') === '1',
+    devWhitelistNames: map.dev_whitelist_names ?? 'Anthony Mashta',
   };
+}
+
+/**
+ * Checks whether an incoming customer is permitted to receive automated AI replies
+ * when Development Whitelist Mode is enabled. Matches exact PSID or case-insensitive name.
+ */
+export function isWhitelistedTester(
+  customerName: string,
+  senderPsid: string,
+  whitelistEnabled: boolean,
+  whitelistNames: string
+): boolean {
+  if (!whitelistEnabled) return true;
+
+  const allowedList = (whitelistNames || '')
+    .split(/[,\n;]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (allowedList.length === 0) return false;
+
+  const name = (customerName || '').toLowerCase().trim();
+  const psid = (senderPsid || '').toLowerCase().trim();
+
+  return allowedList.some((allowed) => {
+    if (psid && psid === allowed) return true;
+    if (name && (name === allowed || name.includes(allowed))) return true;
+    return false;
+  });
 }
 
 export async function generateGeminiChatReply(

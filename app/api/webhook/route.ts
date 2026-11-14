@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne, queryAll, execute, logRawWebhook, updateWebhookLogStatus } from '@/lib/db';
 import { getMetaSettings, sendMetaTextMessage, fetchMetaUserProfile } from '@/lib/meta';
-import { generateGeminiChatReply, getGeminiSettings } from '@/lib/gemini';
+import { generateGeminiChatReply, getGeminiSettings, isWhitelistedTester } from '@/lib/gemini';
 
 // Webhook Verification (GET)
 export async function GET(req: NextRequest) {
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       return new NextResponse('Not Found', { status: 404 });
     }
 
-    const { aiAutoReply } = await getGeminiSettings();
+    const { aiAutoReply, devWhitelistEnabled, devWhitelistNames } = await getGeminiSettings();
 
     // Record that we received a webhook event
     try {
@@ -158,9 +158,20 @@ export async function POST(req: NextRequest) {
             VALUES (?, 'customer', ?)
           `, [conv.id, userText]);
 
-          // 3. Automated AI Reply if enabled
+          // 3. Automated AI Reply if enabled and permitted by dev whitelist
           const isAiEnabledForUser = conv.ai_enabled === 1;
-          if (aiAutoReply && isAiEnabledForUser) {
+          const isWhitelisted = isWhitelistedTester(
+            conv.customer_name,
+            senderPsid,
+            devWhitelistEnabled,
+            devWhitelistNames
+          );
+
+          if (!isWhitelisted) {
+            console.log(
+              `[Webhook Whitelist] Skipped AI auto-reply for "${conv.customer_name}" (${senderPsid}). Not in authorized list.`
+            );
+          } else if (aiAutoReply && isAiEnabledForUser) {
             // Retrieve recent conversation history
             const history = await queryAll<{ sender_type: string; text: string }>(`
               SELECT sender_type, text FROM messages

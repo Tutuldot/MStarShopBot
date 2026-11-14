@@ -19,7 +19,10 @@ import {
   KeyRound,
   Globe,
   SlidersHorizontal,
-  FileText
+  FileText,
+  UserCheck,
+  Plus,
+  X
 } from 'lucide-react';
 import WebhookLogsViewer from '@/components/WebhookLogsViewer';
 
@@ -31,13 +34,16 @@ export default function SettingsPage() {
     fb_app_secret: '',
     webhook_callback_url: '',
     gemini_api_key: '',
-    gemini_model: 'gemini-2.5-flash',
+    gemini_model: 'gemini-3.5-flash',
     system_prompt: '',
     ai_auto_reply: '1',
+    dev_whitelist_enabled: '1',
+    dev_whitelist_names: 'Anthony Mashta',
     store_url: '',
     last_webhook_verified_at: '',
     last_webhook_event_at: '',
   });
+  const [newTesterName, setNewTesterName] = useState('');
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -614,6 +620,137 @@ export default function SettingsPage() {
               <p className="text-[11px] text-slate-400 mt-1">
                 Notice: The products and direct links from your currently active basket set are automatically injected into this prompt during conversation.
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* SECTION 4: DEVELOPMENT & TESTER WHITELIST FILTER */}
+        {/* ======================================================== */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                <UserCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">4. Development &amp; Tester Whitelist Filter</h2>
+                <p className="text-xs text-slate-500">
+                  Restrict Gemini AI auto-replies to authorized testers while still on development.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.dev_whitelist_enabled === '1'}
+                  onChange={(e) => setSettings({ ...settings, dev_whitelist_enabled: e.target.checked ? '1' : '0' })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+              </label>
+              <span className={`text-xs font-semibold ${settings.dev_whitelist_enabled === '1' ? 'text-amber-700' : 'text-slate-500'}`}>
+                {settings.dev_whitelist_enabled === '1' ? 'Whitelist Active (Dev Mode)' : 'Disabled (Open to All Customers)'}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            {/* Add Name Input */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1.5">
+                Authorized Facebook Names or PSIDs
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Type a Facebook name (e.g. Anthony Mashta) or PSID..."
+                  value={newTesterName}
+                  onChange={(e) => setNewTesterName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const trimmed = newTesterName.trim();
+                      if (!trimmed) return;
+                      const current = (settings.dev_whitelist_names || '')
+                        .split(/[,\n;]+/)
+                        .map((s) => s.trim())
+                        .filter(Boolean);
+                      if (!current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+                        setSettings({ ...settings, dev_whitelist_names: [...current, trimmed].join(', ') });
+                      }
+                      setNewTesterName('');
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = newTesterName.trim();
+                    if (!trimmed) return;
+                    const current = (settings.dev_whitelist_names || '')
+                      .split(/[,\n;]+/)
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    if (!current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+                      setSettings({ ...settings, dev_whitelist_names: [...current, trimmed].join(', ') });
+                    }
+                    setNewTesterName('');
+                  }}
+                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Name</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Active Chips List */}
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500 mb-2">
+                Allowed Users ({
+                  (settings.dev_whitelist_names || '')
+                    .split(/[,\n;]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean).length
+                }):
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(settings.dev_whitelist_names || '')
+                  .split(/[,\n;]+/)
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((name) => (
+                    <span
+                      key={name}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full text-xs font-semibold"
+                    >
+                      <UserCheck className="w-3 h-3 text-amber-600" />
+                      <span>{name}</span>
+                      <button
+                        type="button"
+                        title={`Remove ${name}`}
+                        onClick={() => {
+                          const remaining = (settings.dev_whitelist_names || '')
+                            .split(/[,\n;]+/)
+                            .map((s) => s.trim())
+                            .filter((s) => s && s !== name);
+                          setSettings({ ...settings, dev_whitelist_names: remaining.join(', ') });
+                        }}
+                        className="text-amber-500 hover:text-amber-800 ml-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600">
+              <strong>How it works:</strong> While Whitelist Mode is enabled, incoming messages from other Facebook users are still safely received and saved in your <strong>Chats Monitor</strong>, but Gemini AI will <em>only</em> auto-reply to the people listed above. Click <strong>Save All Settings</strong> after editing.
             </div>
           </div>
         </div>

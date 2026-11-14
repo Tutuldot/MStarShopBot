@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryAll, queryOne, execute } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { generateGeminiChatReply, getGeminiSettings } from '@/lib/gemini';
+import { generateGeminiChatReply, getGeminiSettings, isWhitelistedTester } from '@/lib/gemini';
 
 // GET all conversations
 export async function GET() {
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const testPsid = psid || `sim_${Date.now()}`;
     const name = customerName || 'Alex (Test Customer)';
-    const { aiAutoReply } = await getGeminiSettings();
+    const { aiAutoReply, devWhitelistEnabled, devWhitelistNames } = await getGeminiSettings();
 
     let conv = await queryOne<any>('SELECT * FROM conversations WHERE psid = ?', [testPsid]);
 
@@ -61,8 +61,15 @@ export async function POST(req: NextRequest) {
       VALUES (?, 'customer', ?)
     `, [conv.id, text.trim()]);
 
-    // If AI auto-reply is enabled and AI not paused for this conversation
-    if (aiAutoReply && conv.ai_enabled === 1) {
+    const isWhitelisted = isWhitelistedTester(
+      conv.customer_name,
+      testPsid,
+      devWhitelistEnabled,
+      devWhitelistNames
+    );
+
+    // If AI auto-reply is enabled, AI not paused for this conversation, and customer is whitelisted
+    if (aiAutoReply && conv.ai_enabled === 1 && isWhitelisted) {
       const history = await queryAll<{ sender_type: string; text: string }>(`
         SELECT sender_type, text FROM messages
         WHERE conversation_id = ?
@@ -83,7 +90,11 @@ export async function POST(req: NextRequest) {
       `, [botReply, conv.id]);
     }
 
-    return NextResponse.json({ success: true, conversationId: conv.id });
+    return NextResponse.json({
+      success: true,
+      conversationId: conv.id,
+      whitelisted: isWhitelisted,
+    });
   } catch (err: any) {
     console.error('Chat simulation error:', err);
     return NextResponse.json({ error: 'Failed to process message' }, { status: 500 });
