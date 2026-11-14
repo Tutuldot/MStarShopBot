@@ -118,10 +118,18 @@ export async function ensureDbInitialized() {
       sender_type VARCHAR(50) NOT NULL,
       text TEXT NOT NULL,
       product_url TEXT,
+      mid VARCHAR(128) DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_messages_mid (mid),
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  try {
+    await pool.query('ALTER TABLE messages ADD COLUMN mid VARCHAR(128) DEFAULT NULL, ADD INDEX idx_messages_mid (mid)');
+  } catch {
+    // Column already exists
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS settings (

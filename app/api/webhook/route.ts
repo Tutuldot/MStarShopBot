@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne, queryAll, execute, logRawWebhook, updateWebhookLogStatus } from '@/lib/db';
-import { getMetaSettings, sendMetaTextMessage, fetchMetaUserProfile } from '@/lib/meta';
+import { getMetaSettings, sendMetaTextMessage, fetchMetaUserProfile, verifyMetaSignature } from '@/lib/meta';
 import { generateGeminiChatReply, getGeminiSettings, isWhitelistedTester } from '@/lib/gemini';
 
 // Webhook Verification (GET)
@@ -66,7 +66,25 @@ export async function POST(req: NextRequest) {
       headersObj[key] = val;
     });
 
-    // 2. Immediately log the raw incoming payload
+    const { appSecret } = await getMetaSettings();
+
+    // 2. Validate X-Hub-Signature-256 if App Secret is configured
+    const signature = req.headers.get('x-hub-signature-256');
+    const isSignatureValid = verifyMetaSignature(rawBody, signature, appSecret);
+    if (!isSignatureValid) {
+      await logRawWebhook({
+        method: 'POST',
+        source: 'facebook',
+        headers: headersObj,
+        rawPayload: rawBody,
+        status: 'SIGNATURE_FAILED',
+        errorMessage: 'Invalid X-Hub-Signature-256 signature',
+      });
+      console.warn('[Webhook] Rejected request with invalid X-Hub-Signature-256');
+      return new NextResponse('Invalid signature', { status: 401 });
+    }
+
+    // 3. Immediately log the raw incoming payload
     logId = await logRawWebhook({
       method: 'POST',
       source: 'facebook',
@@ -75,7 +93,7 @@ export async function POST(req: NextRequest) {
       status: 'RECEIVED',
     });
 
-    // 3. Parse JSON
+    // 4. Parse JSON
     let body: any;
     try {
       body = JSON.parse(rawBody);
@@ -112,9 +130,34 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        if (senderPsid && event.message?.text) {
+        // Extract text from standard message, quick reply, postback, or attachment
+        let userText = '';
+        if (event.message?.text) {
+          userText = event.message.text.trim();
+        } else if (event.postback) {
+          userText = (event.postback.title || event.postback.payload || '').trim();
+        } else if (event.message?.attachments && event.message.attachments.length > 0) {
+          const att = event.message.attachments[0];
+          if (att.type === 'image') {
+            userText = `[Customer sent an image: ${att.payload?.url || 'photo'}]`;
+          } else {
+            userText = `[Customer sent a ${att.type || 'file'} attachment]`;
+          }
+        }
+
+        const mid = event.message?.mid || null;
+
+        // Idempotency: skip duplicate webhook deliveries from Meta
+        if (mid) {
+          const duplicate = await queryOne('SELECT id FROM messages WHERE mid = ? LIMIT 1', [mid]);
+          if (duplicate) {
+            console.log(`[Webhook] Duplicate message mid=${mid} already processed. Skipping.`);
+            continue;
+          }
+        }
+
+        if (senderPsid && userText) {
           processedCount++;
-          const userText = event.message.text.trim();
 
           // 1. Get or create conversation record
           let conv = await queryOne<any>('SELECT * FROM conversations WHERE psid = ?', [senderPsid]);
@@ -152,11 +195,11 @@ export async function POST(req: NextRequest) {
             `, [userText, conv.id]);
           }
 
-          // 2. Store customer message
+          // 2. Store customer message with mid for deduplication
           await execute(`
-            INSERT INTO messages (conversation_id, sender_type, text)
-            VALUES (?, 'customer', ?)
-          `, [conv.id, userText]);
+            INSERT INTO messages (conversation_id, sender_type, text, mid)
+            VALUES (?, 'customer', ?, ?)
+          `, [conv.id, userText, mid]);
 
           // 3. Automated AI Reply if enabled and permitted by dev whitelist
           const isAiEnabledForUser = conv.ai_enabled === 1;

@@ -214,10 +214,13 @@ function ChatConsole() {
 
       if (res.ok) {
         await fetchMessages(selectedConvId);
-        await fetchConversations(true);
+        await fetchConversations();
+      } else {
+        setInputReply(textToSend);
       }
     } catch (err) {
       console.error(err);
+      setInputReply(textToSend);
     } finally {
       setSending(false);
     }
@@ -231,7 +234,7 @@ function ChatConsole() {
       const data = await res.json();
       if (res.ok) {
         setSelectedConv((prev) => prev ? { ...prev, ai_enabled: data.ai_enabled } : null);
-        await fetchConversations(true);
+        await fetchConversations();
       }
     } catch (err) {
       console.error(err);
@@ -250,7 +253,7 @@ function ChatConsole() {
       if (res.ok) {
         setShowProductDrawer(false);
         await fetchMessages(selectedConvId);
-        await fetchConversations(true);
+        await fetchConversations();
       }
     } catch (err) {
       console.error(err);
@@ -278,7 +281,7 @@ function ChatConsole() {
                 }
               : null
           );
-          await fetchConversations(true);
+          await fetchConversations();
           setSyncFeedback({ message: 'Profile synced with Meta!', ok: true });
         } else {
           setSyncFeedback({ message: data.message || 'Updated', ok: true });

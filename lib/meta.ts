@@ -1,4 +1,37 @@
+import crypto from 'crypto';
 import { queryAll, formatProductPrice } from './db';
+
+export function verifyMetaSignature(
+  rawBody: string,
+  signatureHeader?: string | null,
+  appSecret?: string | null
+): boolean {
+  if (!appSecret || !appSecret.trim()) {
+    // If App Secret is not configured, skip verification
+    return true;
+  }
+  if (!signatureHeader) {
+    return false;
+  }
+  const prefix = 'sha256=';
+  if (!signatureHeader.startsWith(prefix)) {
+    return false;
+  }
+  const expectedHash = signatureHeader.slice(prefix.length);
+  const actualHash = crypto
+    .createHmac('sha256', appSecret.trim())
+    .update(rawBody)
+    .digest('hex');
+
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(actualHash, 'utf8'),
+      Buffer.from(expectedHash, 'utf8')
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function getMetaSettings() {
   const rows = await queryAll<{ key: string; value: string }>("SELECT `key`, `value` FROM settings WHERE `key` LIKE 'fb_%' OR `key` LIKE 'webhook_%'");
