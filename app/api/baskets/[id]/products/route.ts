@@ -11,7 +11,7 @@ export async function POST(
 
   const { id } = await params;
   try {
-    const { name, price, price_max, currency, description, image_url, product_url } = await req.json();
+    const { name, price, price_max, currency, description, image_url, product_url, checkout_url } = await req.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
@@ -24,8 +24,8 @@ export async function POST(
     const maxPrice = price_max != null && parseFloat(price_max) > minPrice ? parseFloat(price_max) : null;
 
     const result = await execute(`
-      INSERT INTO products (basket_set_id, name, price, price_max, currency, description, image_url, product_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (basket_set_id, name, price, price_max, currency, description, image_url, product_url, checkout_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       Number(id),
       name.trim(),
@@ -34,7 +34,8 @@ export async function POST(
       currency || '$',
       description || '',
       image_url || '',
-      product_url.trim()
+      product_url.trim(),
+      checkout_url ? checkout_url.trim() : null
     ]);
 
     return NextResponse.json({ success: true, id: result.insertId });

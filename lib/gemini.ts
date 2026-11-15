@@ -63,19 +63,23 @@ export async function generateGeminiChatReply(
 
   let productsContext = "No active product catalog set at this moment.";
   if (activeSet && products.length > 0) {
-    productsContext = `ACTIVE PROMOTIONAL BASKET SET: "${(activeSet as any).name}"\nProducts currently available to recommend:\n` +
+    const basketLabel = (activeSet as any).basket_number
+      ? `ACTIVE PROMOTIONAL BASKET #${(activeSet as any).basket_number}: "${(activeSet as any).name}"`
+      : `ACTIVE PROMOTIONAL BASKET SET: "${(activeSet as any).name}"`;
+    productsContext = `${basketLabel}\nProducts currently available to recommend:\n` +
       products.map((p: any, i: number) => {
         const formattedPrice = formatProductPrice(p.price, p.price_max, p.currency);
-        return `${i + 1}. ${p.name} - Price: ${formattedPrice}\n   Description: ${p.description || 'N/A'}\n   Product URL: ${p.product_url}`;
+        const paymentLink = p.checkout_url || p.product_url;
+        return `${i + 1}. ${p.name} - Price: ${formattedPrice}\n   Description: ${p.description || 'N/A'}\n   Direct Checkout / Payment Link: ${paymentLink}`;
       }).join('\n\n');
   }
 
   const enhancedSystemInstruction = `${systemPrompt}
 
 You represent MStarShop. When customers ask about products, deals, recommendations, or pricing:
-1. Always promote relevant items from the ACTIVE PROMOTIONAL BASKET SET below.
+1. Always promote relevant items from the ACTIVE PROMOTIONAL BASKET below.
 2. If a product has a price range (e.g. ₱41,715 – ₱42,468), mention that the price varies depending on size, weight, or selected options.
-3. Provide the direct product URL so the customer can click to buy it on our PHP / WooCommerce website.
+3. When the customer indicates they want to order, buy, or pay, provide the DIRECT CHECKOUT / PAYMENT LINK so they can immediately proceed to payment on WooCommerce without browsing.
 4. Keep answers friendly, conversational, concise, and easy to read on mobile Messenger.
 5. Do not invent products or links outside of this catalog.
 

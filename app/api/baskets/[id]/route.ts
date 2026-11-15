@@ -29,17 +29,21 @@ export async function PUT(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const { name, description } = await req.json();
+  const { name, description, basketNumber } = await req.json();
 
   if (!name || !name.trim()) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
 
+  const parsedNum = basketNumber !== undefined && basketNumber !== null && basketNumber !== ''
+    ? Number(basketNumber)
+    : null;
+
   await execute(`
     UPDATE basket_sets
-    SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, basket_number = ?, description = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `, [name.trim(), description || '', Number(id)]);
+  `, [name.trim(), parsedNum, description || '', Number(id)]);
 
   return NextResponse.json({ success: true });
 }

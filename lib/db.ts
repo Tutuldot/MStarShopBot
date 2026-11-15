@@ -74,13 +74,21 @@ export async function ensureDbInitialized() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS basket_sets (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      basket_number INT DEFAULT NULL,
       name VARCHAR(255) NOT NULL,
       description TEXT,
       is_active TINYINT DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_basket_number (basket_number)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  try {
+    await pool.query('ALTER TABLE basket_sets ADD COLUMN basket_number INT DEFAULT NULL, ADD INDEX idx_basket_number (basket_number)');
+  } catch {
+    // Column already exists
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS products (
@@ -93,10 +101,17 @@ export async function ensureDbInitialized() {
       description TEXT,
       image_url TEXT,
       product_url TEXT NOT NULL,
+      checkout_url TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (basket_set_id) REFERENCES basket_sets(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  try {
+    await pool.query('ALTER TABLE products ADD COLUMN checkout_url TEXT DEFAULT NULL');
+  } catch {
+    // Column already exists
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS conversations (

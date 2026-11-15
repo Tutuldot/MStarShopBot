@@ -11,7 +11,7 @@ export async function PUT(
 
   const { id } = await params;
   try {
-    const { name, price, price_max, currency, description, image_url, product_url } = await req.json();
+    const { name, price, price_max, currency, description, image_url, product_url, checkout_url } = await req.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
@@ -25,7 +25,7 @@ export async function PUT(
 
     await execute(`
       UPDATE products
-      SET name = ?, price = ?, price_max = ?, currency = ?, description = ?, image_url = ?, product_url = ?
+      SET name = ?, price = ?, price_max = ?, currency = ?, description = ?, image_url = ?, product_url = ?, checkout_url = ?
       WHERE id = ?
     `, [
       name.trim(),
@@ -35,6 +35,7 @@ export async function PUT(
       description || '',
       image_url || '',
       product_url.trim(),
+      checkout_url ? checkout_url.trim() : null,
       Number(id)
     ]);
 
