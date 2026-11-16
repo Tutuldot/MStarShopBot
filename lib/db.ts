@@ -94,6 +94,7 @@ export async function ensureDbInitialized() {
     CREATE TABLE IF NOT EXISTS products (
       id INT AUTO_INCREMENT PRIMARY KEY,
       basket_set_id INT NOT NULL,
+      product_number INT DEFAULT NULL,
       name VARCHAR(255) NOT NULL,
       price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
       price_max DECIMAL(12, 2) DEFAULT NULL,
@@ -103,12 +104,19 @@ export async function ensureDbInitialized() {
       product_url TEXT NOT NULL,
       checkout_url TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_product_number (product_number),
       FOREIGN KEY (basket_set_id) REFERENCES basket_sets(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
   try {
     await pool.query('ALTER TABLE products ADD COLUMN checkout_url TEXT DEFAULT NULL');
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await pool.query('ALTER TABLE products ADD COLUMN product_number INT DEFAULT NULL, ADD INDEX idx_product_number (product_number)');
   } catch {
     // Column already exists
   }

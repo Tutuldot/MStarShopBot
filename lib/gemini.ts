@@ -70,14 +70,15 @@ export async function generateGeminiChatReply(
       products.map((p: any, i: number) => {
         const formattedPrice = formatProductPrice(p.price, p.price_max, p.currency);
         const paymentLink = p.checkout_url || p.product_url;
-        return `${i + 1}. ${p.name} - Price: ${formattedPrice}\n   Description: ${p.description || 'N/A'}\n   Direct Checkout / Payment Link: ${paymentLink}`;
+        const itemNumLabel = p.product_number != null ? `Item #${p.product_number}` : `Item #${i + 1}`;
+        return `${itemNumLabel}: ${p.name} - Price: ${formattedPrice}\n   Description: ${p.description || 'N/A'}\n   Direct Checkout / Payment Link: ${paymentLink}`;
       }).join('\n\n');
   }
 
   const enhancedSystemInstruction = `${systemPrompt}
 
 You represent MStarShop. When customers ask about products, deals, recommendations, or pricing:
-1. Always promote relevant items from the ACTIVE PROMOTIONAL BASKET below.
+1. Always promote relevant items from the ACTIVE PROMOTIONAL BASKET below. If a customer refers to an item number or product number (e.g., "Item 1", "Product #2"), match and refer to that numbered item.
 2. If a product has a price range (e.g. ₱41,715 – ₱42,468), mention that the price varies depending on size, weight, or selected options.
 3. When the customer indicates they want to order, buy, or pay, provide the DIRECT CHECKOUT / PAYMENT LINK so they can immediately proceed to payment on WooCommerce without browsing.
 4. Keep answers friendly, conversational, concise, and easy to read on mobile Messenger.

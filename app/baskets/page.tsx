@@ -34,6 +34,7 @@ interface BasketSet {
 interface Product {
   id: number;
   basket_set_id: number;
+  product_number?: number | null;
   name: string;
   price: number;
   price_max?: number | null;
@@ -50,9 +51,13 @@ export default function BasketsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Sorting & Filtering State
+  // Basket Sets Sorting & Filtering State
   const [basketSortBy, setBasketSortBy] = useState<'number_asc' | 'number_desc' | 'active_first' | 'name_asc' | 'name_desc' | 'products_desc' | 'newest'>('number_asc');
   const [basketSearch, setBasketSearch] = useState('');
+
+  // Products Sorting & Filtering State
+  const [productSortBy, setProductSortBy] = useState<'number_asc' | 'number_desc' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'newest'>('number_asc');
+  const [productSearch, setProductSearch] = useState('');
 
   // Modals - New Set
   const [showNewSetModal, setShowNewSetModal] = useState(false);
@@ -71,6 +76,7 @@ export default function BasketsPage() {
   // Modals - Product
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [prodNumber, setProdNumber] = useState('');
   const [prodName, setProdName] = useState('');
   const [prodPrice, setProdPrice] = useState('');
   const [prodPriceMax, setProdPriceMax] = useState('');
@@ -283,6 +289,7 @@ export default function BasketsPage() {
     try {
       const payload = {
         name: prodName.trim(),
+        product_number: prodNumber ? parseInt(prodNumber, 10) : undefined,
         price: minPrice,
         price_max: maxPrice,
         currency: prodCurrency.trim() || '₱',
@@ -332,8 +339,17 @@ export default function BasketsPage() {
     }
   };
 
+  const openAddProduct = () => {
+    resetProductForm();
+    // Auto-suggest next product number within this basket
+    const maxProdNum = products.reduce((max, p) => Math.max(max, p.product_number || 0), 0);
+    setProdNumber((maxProdNum + 1).toString());
+    setShowProductModal(true);
+  };
+
   const openEditProduct = (p: Product) => {
     setEditingProductId(p.id);
+    setProdNumber(p.product_number != null ? p.product_number.toString() : '');
     setProdName(p.name);
     setProdPrice(p.price.toString());
     setProdPriceMax(p.price_max ? p.price_max.toString() : '');
@@ -351,6 +367,7 @@ export default function BasketsPage() {
 
   const resetProductForm = () => {
     setEditingProductId(null);
+    setProdNumber('');
     setProdName('');
     setProdPrice('');
     setProdPriceMax('');
@@ -376,7 +393,7 @@ export default function BasketsPage() {
     return `${curr}${min.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
   };
 
-  // Filter & Sort Baskets
+  // Filter & Sort Basket Sets
   const filteredAndSortedSets = useMemo(() => {
     return sets
       .filter((s) => {
@@ -422,6 +439,50 @@ export default function BasketsPage() {
       });
   }, [sets, basketSearch, basketSortBy]);
 
+  // Filter & Sort Products in Selected Basket
+  const filteredAndSortedProducts = useMemo(() => {
+    return products
+      .filter((p) => {
+        if (!productSearch.trim()) return true;
+        const q = productSearch.toLowerCase().trim();
+        const numStr = p.product_number != null ? `${p.product_number}` : '';
+        const numLabel1 = `item #${numStr}`.toLowerCase();
+        const numLabel2 = `product #${numStr}`.toLowerCase();
+        const numMatch = numStr === q || numLabel1.includes(q) || numLabel2.includes(q);
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const descMatch = (p.description || '').toLowerCase().includes(q);
+        return numMatch || nameMatch || descMatch;
+      })
+      .sort((a, b) => {
+        if (productSortBy === 'number_asc') {
+          const numA = a.product_number != null ? a.product_number : 999999;
+          const numB = b.product_number != null ? b.product_number : 999999;
+          return numA - numB;
+        }
+        if (productSortBy === 'number_desc') {
+          const numA = a.product_number != null ? a.product_number : -1;
+          const numB = b.product_number != null ? b.product_number : -1;
+          return numB - numA;
+        }
+        if (productSortBy === 'price_asc') {
+          return (Number(a.price) || 0) - (Number(b.price) || 0);
+        }
+        if (productSortBy === 'price_desc') {
+          return (Number(b.price) || 0) - (Number(a.price) || 0);
+        }
+        if (productSortBy === 'name_asc') {
+          return a.name.localeCompare(b.name);
+        }
+        if (productSortBy === 'name_desc') {
+          return b.name.localeCompare(a.name);
+        }
+        if (productSortBy === 'newest') {
+          return b.id - a.id;
+        }
+        return 0;
+      });
+  }, [products, productSearch, productSortBy]);
+
   const selectedSet = sets.find((s) => s.id === selectedSetId);
 
   return (
@@ -434,7 +495,7 @@ export default function BasketsPage() {
             <span>Product Basket Sets</span>
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Organize products into numbered live-selling baskets with WooCommerce checkout links and price ranges. <span className="font-semibold text-slate-700">Only 1 basket set is active at a time</span>.
+            Organize products into numbered live-selling baskets with per-item numbers, WooCommerce checkout links, and customizable sorting.
           </p>
         </div>
 
@@ -487,7 +548,7 @@ export default function BasketsPage() {
             <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
               <label htmlFor="basket-sort-select" className="text-slate-500 font-medium flex items-center gap-1 text-[11px]">
                 <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                <span>Sort by:</span>
+                <span>Sort baskets:</span>
               </label>
               <select
                 id="basket-sort-select"
@@ -604,7 +665,7 @@ export default function BasketsPage() {
         {/* Right Column: Products in the Selected Basket */}
         <div className="lg:col-span-8">
           {selectedSet ? (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-5">
               {/* Set Title and Actions */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-100 gap-3">
                 <div>
@@ -646,10 +707,7 @@ export default function BasketsPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => {
-                      resetProductForm();
-                      setShowProductModal(true);
-                    }}
+                    onClick={openAddProduct}
                     className="px-3.5 py-1.5 text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white rounded-xl shadow-sm transition-all flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -658,8 +716,56 @@ export default function BasketsPage() {
                 </div>
               </div>
 
-              {/* Products List */}
-              <div className="mt-5 space-y-4">
+              {/* Product Search & Sort Toolbar */}
+              {products.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Search items by product # or title..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    {productSearch && (
+                      <button
+                        onClick={() => setProductSearch('')}
+                        className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
+                      {filteredAndSortedProducts.length} of {products.length} products
+                    </span>
+                    <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 border border-slate-200 rounded-lg shadow-2xs">
+                      <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      <span className="text-slate-500 text-[11px]">Sort:</span>
+                      <select
+                        aria-label="Sort products by"
+                        value={productSortBy}
+                        onChange={(e: any) => setProductSortBy(e.target.value)}
+                        className="bg-transparent text-slate-700 font-semibold text-xs outline-none cursor-pointer hover:text-brand-600"
+                      >
+                        <option value="number_asc">Item # (1 → 9)</option>
+                        <option value="number_desc">Item # (9 → 1)</option>
+                        <option value="price_asc">Price: Low → High</option>
+                        <option value="price_desc">Price: High → Low</option>
+                        <option value="name_asc">Name: A → Z</option>
+                        <option value="name_desc">Name: Z → A</option>
+                        <option value="newest">Recently Added</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Products Grid */}
+              <div className="space-y-4">
                 {products.length === 0 ? (
                   <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6">
                     <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -668,18 +774,19 @@ export default function BasketsPage() {
                       Click &quot;Add Product&quot; to auto-fetch details from your WooCommerce store URL or enter them manually.
                     </p>
                     <button
-                      onClick={() => {
-                        resetProductForm();
-                        setShowProductModal(true);
-                      }}
+                      onClick={openAddProduct}
                       className="mt-4 px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-xl"
                     >
                       Add First Product
                     </button>
                   </div>
+                ) : filteredAndSortedProducts.length === 0 ? (
+                  <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
+                    <p className="text-xs text-slate-500">No products match your search query &quot;{productSearch}&quot;.</p>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {products.map((p) => {
+                    {filteredAndSortedProducts.map((p) => {
                       const hasRange = p.price_max != null && p.price_max > p.price;
 
                       return (
@@ -701,11 +808,16 @@ export default function BasketsPage() {
                             )}
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-1">
-                                <h4 className="text-sm font-bold text-slate-900 truncate" title={p.name}>
-                                  {p.name}
-                                </h4>
+                              {/* Product Number Badge */}
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-900 text-white shrink-0 tracking-wide">
+                                  ITEM #{p.product_number ?? p.id}
+                                </span>
                               </div>
+
+                              <h4 className="text-sm font-bold text-slate-900 truncate" title={p.name}>
+                                {p.name}
+                              </h4>
 
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                 <span className="text-sm font-extrabold text-brand-700">
@@ -945,7 +1057,7 @@ export default function BasketsPage() {
         </div>
       )}
 
-      {/* Modal: Add / Edit Product (With Auto-Fetch & Price Range & Checkout URL) */}
+      {/* Modal: Add / Edit Product (With Auto-Fetch & Price Range & Item # & Checkout URL) */}
       {showProductModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl max-w-xl w-full p-6 border border-slate-200 my-8">
@@ -1003,18 +1115,34 @@ export default function BasketsPage() {
             )}
 
             <form onSubmit={handleSaveProduct} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                  Product Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="MsMorningstar 18k Premium Ball & Lock Necklace"
-                  value={prodName}
-                  onChange={(e) => setProdName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 outline-none"
-                />
+              <div className="grid grid-cols-4 gap-3">
+                <div className="col-span-1">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                    <Hash className="w-3 h-3 text-brand-600" />
+                    <span>Item #</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="1"
+                    value={prodNumber}
+                    onChange={(e) => setProdNumber(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-brand-500 outline-none"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Product Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="MsMorningstar 18k Premium Ball & Lock Necklace"
+                    value={prodName}
+                    onChange={(e) => setProdName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 outline-none"
+                  />
+                </div>
               </div>
 
               {/* Price Range Controls */}
@@ -1151,7 +1279,7 @@ export default function BasketsPage() {
                   <CreditCard className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-2.5" />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  💡 When a customer says &quot;I want to buy/order&quot;, the AI bot sends this direct checkout link so they can pay immediately without navigating product/cart pages.
+                  💡 When a customer says &quot;I want to buy/order item 1&quot;, the AI bot sends this direct checkout link so they can pay immediately without navigating product/cart pages.
                 </p>
               </div>
 

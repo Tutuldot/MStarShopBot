@@ -16,7 +16,10 @@ export async function GET(
     return NextResponse.json({ error: 'Basket set not found' }, { status: 404 });
   }
 
-  const products = await queryAll('SELECT * FROM products WHERE basket_set_id = ? ORDER BY id ASC', [Number(id)]);
+  const products = await queryAll(
+    'SELECT * FROM products WHERE basket_set_id = ? ORDER BY COALESCE(product_number, 999999) ASC, id ASC',
+    [Number(id)]
+  );
 
   return NextResponse.json({ set, products });
 }

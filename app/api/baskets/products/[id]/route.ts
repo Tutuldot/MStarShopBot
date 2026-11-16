@@ -11,7 +11,17 @@ export async function PUT(
 
   const { id } = await params;
   try {
-    const { name, price, price_max, currency, description, image_url, product_url, checkout_url } = await req.json();
+    const { 
+      name, 
+      product_number, 
+      price, 
+      price_max, 
+      currency, 
+      description, 
+      image_url, 
+      product_url, 
+      checkout_url 
+    } = await req.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
@@ -20,15 +30,20 @@ export async function PUT(
       return NextResponse.json({ error: 'Product URL is required' }, { status: 400 });
     }
 
+    const parsedNum = product_number !== undefined && product_number !== null && product_number !== ''
+      ? Number(product_number)
+      : null;
+
     const minPrice = parseFloat(price) || 0.0;
     const maxPrice = price_max != null && parseFloat(price_max) > minPrice ? parseFloat(price_max) : null;
 
     await execute(`
       UPDATE products
-      SET name = ?, price = ?, price_max = ?, currency = ?, description = ?, image_url = ?, product_url = ?, checkout_url = ?
+      SET name = ?, product_number = ?, price = ?, price_max = ?, currency = ?, description = ?, image_url = ?, product_url = ?, checkout_url = ?
       WHERE id = ?
     `, [
       name.trim(),
+      parsedNum,
       minPrice,
       maxPrice,
       currency || '$',

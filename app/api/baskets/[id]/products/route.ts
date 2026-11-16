@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execute } from '@/lib/db';
+import { execute, queryOne } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function POST(
@@ -11,7 +11,17 @@ export async function POST(
 
   const { id } = await params;
   try {
-    const { name, price, price_max, currency, description, image_url, product_url, checkout_url } = await req.json();
+    const { 
+      name, 
+      product_number, 
+      price, 
+      price_max, 
+      currency, 
+      description, 
+      image_url, 
+      product_url, 
+      checkout_url 
+    } = await req.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
@@ -20,14 +30,26 @@ export async function POST(
       return NextResponse.json({ error: 'Product URL is required' }, { status: 400 });
     }
 
+    let parsedNum = product_number !== undefined && product_number !== null && product_number !== ''
+      ? Number(product_number)
+      : null;
+    if (parsedNum == null || isNaN(parsedNum)) {
+      const maxRow = await queryOne<{ max_num: number }>(
+        'SELECT MAX(product_number) as max_num FROM products WHERE basket_set_id = ?',
+        [Number(id)]
+      );
+      parsedNum = (maxRow?.max_num || 0) + 1;
+    }
+
     const minPrice = parseFloat(price) || 0.0;
     const maxPrice = price_max != null && parseFloat(price_max) > minPrice ? parseFloat(price_max) : null;
 
     const result = await execute(`
-      INSERT INTO products (basket_set_id, name, price, price_max, currency, description, image_url, product_url, checkout_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (basket_set_id, product_number, name, price, price_max, currency, description, image_url, product_url, checkout_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       Number(id),
+      parsedNum,
       name.trim(),
       minPrice,
       maxPrice,
