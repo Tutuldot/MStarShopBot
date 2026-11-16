@@ -101,11 +101,11 @@ export default async function DashboardPage() {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-6">
-        {/* Metric 1: Active Product Basket */}
+        {/* Metric 1: Active Product Set */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Active Basket Set
+              Active Set
             </span>
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
               <ShoppingBag className="w-5 h-5" />
@@ -117,14 +117,14 @@ export default async function DashboardPage() {
             </div>
             <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{products.length} live product{products.length === 1 ? '' : 's'} linked</span>
+              <span>{products.length} live basket{products.length === 1 ? '' : 's'} linked</span>
             </div>
           </div>
           <Link
             href="/baskets"
             className="mt-4 text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
           >
-            Manage baskets ({totalBaskets.count} total) <ArrowRight className="w-3 h-3" />
+            Manage sets ({totalBaskets.count} total) <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
 
@@ -233,20 +233,20 @@ export default async function DashboardPage() {
 
       {/* Main Grid: Active Products & Recent Chats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-        {/* Left 2 Cols: Currently Active Basket Products */}
+        {/* Left 2 Cols: Currently Active Live Baskets */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
-                  ACTIVE BASKET SET
+                  ACTIVE SET
                 </span>
                 <h2 className="text-lg font-bold text-slate-900">
                   {activeSet ? (activeSet as any).name : 'No Set Active'}
                 </h2>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                These are the products that Google Gemini AI and human staff pitch directly to customers in Messenger chats with direct links to your PHP store.
+                These are the live-selling Baskets that Google Gemini AI and human staff pitch directly to customers in Messenger chats with direct payment links.
               </p>
             </div>
             <Link
@@ -261,7 +261,7 @@ export default async function DashboardPage() {
           <div className="mt-4 divide-y divide-slate-100">
             {products.length === 0 ? (
               <div className="py-8 text-center text-sm text-slate-400">
-                No products inside this basket yet. Add products with URLs to your PHP store.
+                No baskets inside this set yet. Add baskets with direct payment links.
               </div>
             ) : (
               products.map((p: any) => (
@@ -279,8 +279,13 @@ export default async function DashboardPage() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <h4 className="text-sm font-semibold text-slate-900 truncate">{p.name}</h4>
-                      <p className="text-xs text-slate-500 truncate max-w-md">{p.description || 'No description'}</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-brand-600 text-white shrink-0">
+                          BASKET #{p.product_number ?? p.id}
+                        </span>
+                        <h4 className="text-sm font-semibold text-slate-900 truncate">{p.name}</h4>
+                      </div>
+                      <p className="text-xs text-slate-500 truncate max-w-md mt-0.5">{p.description || 'No description'}</p>
                       <a
                         href={p.product_url}
                         target="_blank"

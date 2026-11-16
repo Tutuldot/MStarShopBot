@@ -51,17 +51,17 @@ export default function BasketsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Basket Sets Sorting & Filtering State
-  const [basketSortBy, setBasketSortBy] = useState<'number_asc' | 'number_desc' | 'active_first' | 'name_asc' | 'name_desc' | 'products_desc' | 'newest'>('number_asc');
-  const [basketSearch, setBasketSearch] = useState('');
+  // Sets Sorting & Filtering State
+  const [setSortBy, setSetSortBy] = useState<'number_asc' | 'number_desc' | 'active_first' | 'name_asc' | 'name_desc' | 'products_desc' | 'newest'>('number_asc');
+  const [setSearch, setSetSearch] = useState('');
 
-  // Products Sorting & Filtering State
-  const [productSortBy, setProductSortBy] = useState<'number_asc' | 'number_desc' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'newest'>('number_asc');
-  const [productSearch, setProductSearch] = useState('');
+  // Baskets Sorting & Filtering State
+  const [basketSortBy, setBasketSortBy] = useState<'number_asc' | 'number_desc' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'newest'>('number_asc');
+  const [basketSearch, setBasketSearch] = useState('');
 
   // Modals - New Set
   const [showNewSetModal, setShowNewSetModal] = useState(false);
-  const [newBasketNumber, setNewBasketNumber] = useState('');
+  const [newSetNumber, setNewSetNumber] = useState('');
   const [newSetName, setNewSetName] = useState('');
   const [newSetDesc, setNewSetDesc] = useState('');
   const [activateImmediately, setActivateImmediately] = useState(false);
@@ -69,11 +69,11 @@ export default function BasketsPage() {
   // Modals - Edit Set
   const [showEditSetModal, setShowEditSetModal] = useState(false);
   const [editSetId, setEditSetId] = useState<number | null>(null);
-  const [editBasketNumber, setEditBasketNumber] = useState('');
+  const [editSetNumber, setEditSetNumber] = useState('');
   const [editSetName, setEditSetName] = useState('');
   const [editSetDesc, setEditSetDesc] = useState('');
 
-  // Modals - Product
+  // Modals - Basket Item
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [prodNumber, setProdNumber] = useState('');
@@ -154,7 +154,7 @@ export default function BasketsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newSetName.trim(),
-          basketNumber: newBasketNumber ? parseInt(newBasketNumber, 10) : undefined,
+          basketNumber: newSetNumber ? parseInt(newSetNumber, 10) : undefined,
           description: newSetDesc.trim(),
           activateImmediately,
         }),
@@ -164,7 +164,7 @@ export default function BasketsPage() {
       if (res.ok) {
         setShowNewSetModal(false);
         setNewSetName('');
-        setNewBasketNumber('');
+        setNewSetNumber('');
         setNewSetDesc('');
         setActivateImmediately(false);
         await fetchSets();
@@ -178,7 +178,7 @@ export default function BasketsPage() {
   const openEditSet = (set: BasketSet) => {
     setEditSetId(set.id);
     setEditSetName(set.name);
-    setEditBasketNumber(set.basket_number != null ? set.basket_number.toString() : '');
+    setEditSetNumber(set.basket_number != null ? set.basket_number.toString() : '');
     setEditSetDesc(set.description || '');
     setShowEditSetModal(true);
   };
@@ -193,7 +193,7 @@ export default function BasketsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editSetName.trim(),
-          basketNumber: editBasketNumber ? parseInt(editBasketNumber, 10) : null,
+          basketNumber: editSetNumber ? parseInt(editSetNumber, 10) : null,
           description: editSetDesc.trim(),
         }),
       });
@@ -208,7 +208,7 @@ export default function BasketsPage() {
   };
 
   const handleDeleteSet = async (setId: number) => {
-    if (!confirm('Are you sure you want to delete this basket set and all its products?')) return;
+    if (!confirm('Are you sure you want to delete this Set and all its Baskets?')) return;
     try {
       await fetch(`/api/baskets/${setId}`, { method: 'DELETE' });
       setSelectedSetId(null);
@@ -222,7 +222,7 @@ export default function BasketsPage() {
   const handleAutoFetch = async () => {
     const urlToFetch = (fetchUrl || prodUrl).trim();
     if (!urlToFetch) {
-      setActionError('Please enter a product URL to fetch details from.');
+      setActionError('Please enter a WooCommerce product URL to fetch details from.');
       return;
     }
 
@@ -274,7 +274,7 @@ export default function BasketsPage() {
     e.preventDefault();
     setActionError('');
     if (!prodName.trim() || !prodUrl.trim()) {
-      setActionError('Product Name and Product URL are required.');
+      setActionError('Basket Item Name and Product URL are required.');
       return;
     }
 
@@ -305,14 +305,14 @@ export default function BasketsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error('Failed to update product');
+        if (!res.ok) throw new Error('Failed to update basket');
       } else {
         const res = await fetch(`/api/baskets/${selectedSetId}/products`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        if (!res.ok) throw new Error('Failed to add product');
+        if (!res.ok) throw new Error('Failed to add basket');
       }
 
       setShowProductModal(false);
@@ -322,12 +322,12 @@ export default function BasketsPage() {
         await fetchSets();
       }
     } catch (err: any) {
-      setActionError(err.message || 'Error saving product');
+      setActionError(err.message || 'Error saving basket');
     }
   };
 
   const handleDeleteProduct = async (prodId: number) => {
-    if (!confirm('Delete this product from this basket?')) return;
+    if (!confirm('Delete this Basket from this Set?')) return;
     try {
       await fetch(`/api/baskets/products/${prodId}`, { method: 'DELETE' });
       if (selectedSetId) {
@@ -341,9 +341,9 @@ export default function BasketsPage() {
 
   const openAddProduct = () => {
     resetProductForm();
-    // Auto-suggest next product number within this basket
-    const maxProdNum = products.reduce((max, p) => Math.max(max, p.product_number || 0), 0);
-    setProdNumber((maxProdNum + 1).toString());
+    // Auto-suggest next basket number within this set
+    const maxBasketNum = products.reduce((max, p) => Math.max(max, p.product_number || 0), 0);
+    setProdNumber((maxBasketNum + 1).toString());
     setShowProductModal(true);
   };
 
@@ -393,35 +393,82 @@ export default function BasketsPage() {
     return `${curr}${min.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
   };
 
-  // Filter & Sort Basket Sets
+  // Filter & Sort Sets
   const filteredAndSortedSets = useMemo(() => {
     return sets
       .filter((s) => {
-        if (!basketSearch.trim()) return true;
-        const query = basketSearch.toLowerCase().trim();
+        if (!setSearch.trim()) return true;
+        const query = setSearch.toLowerCase().trim();
         const numStr = s.basket_number != null ? `${s.basket_number}` : '';
-        const numLabel = `basket #${numStr}`.toLowerCase();
+        const numLabel = `set #${numStr}`.toLowerCase();
         const numMatch = numStr === query || numLabel.includes(query);
         const nameMatch = s.name.toLowerCase().includes(query);
         const descMatch = (s.description || '').toLowerCase().includes(query);
         return numMatch || nameMatch || descMatch;
       })
       .sort((a, b) => {
-        if (basketSortBy === 'number_asc') {
+        if (setSortBy === 'number_asc') {
           const numA = a.basket_number != null ? a.basket_number : 999999;
           const numB = b.basket_number != null ? b.basket_number : 999999;
           return numA - numB;
         }
-        if (basketSortBy === 'number_desc') {
+        if (setSortBy === 'number_desc') {
           const numA = a.basket_number != null ? a.basket_number : -1;
           const numB = b.basket_number != null ? b.basket_number : -1;
           return numB - numA;
         }
-        if (basketSortBy === 'active_first') {
+        if (setSortBy === 'active_first') {
           if (a.is_active !== b.is_active) return b.is_active - a.is_active;
           const numA = a.basket_number != null ? a.basket_number : 999999;
           const numB = b.basket_number != null ? b.basket_number : 999999;
           return numA - numB;
+        }
+        if (setSortBy === 'name_asc') {
+          return a.name.localeCompare(b.name);
+        }
+        if (setSortBy === 'name_desc') {
+          return b.name.localeCompare(a.name);
+        }
+        if (setSortBy === 'products_desc') {
+          return b.product_count - a.product_count;
+        }
+        if (setSortBy === 'newest') {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return 0;
+      });
+  }, [sets, setSearch, setSortBy]);
+
+  // Filter & Sort Baskets in Selected Set
+  const filteredAndSortedProducts = useMemo(() => {
+    return products
+      .filter((p) => {
+        if (!basketSearch.trim()) return true;
+        const q = basketSearch.toLowerCase().trim();
+        const numStr = p.product_number != null ? `${p.product_number}` : '';
+        const numLabel1 = `basket #${numStr}`.toLowerCase();
+        const numLabel2 = `basket ${numStr}`.toLowerCase();
+        const numMatch = numStr === q || numLabel1.includes(q) || numLabel2.includes(q);
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const descMatch = (p.description || '').toLowerCase().includes(q);
+        return numMatch || nameMatch || descMatch;
+      })
+      .sort((a, b) => {
+        if (basketSortBy === 'number_asc') {
+          const numA = a.product_number != null ? a.product_number : 999999;
+          const numB = b.product_number != null ? b.product_number : 999999;
+          return numA - numB;
+        }
+        if (basketSortBy === 'number_desc') {
+          const numA = a.product_number != null ? a.product_number : -1;
+          const numB = b.product_number != null ? b.product_number : -1;
+          return numB - numA;
+        }
+        if (basketSortBy === 'price_asc') {
+          return (Number(a.price) || 0) - (Number(b.price) || 0);
+        }
+        if (basketSortBy === 'price_desc') {
+          return (Number(b.price) || 0) - (Number(a.price) || 0);
         }
         if (basketSortBy === 'name_asc') {
           return a.name.localeCompare(b.name);
@@ -429,59 +476,12 @@ export default function BasketsPage() {
         if (basketSortBy === 'name_desc') {
           return b.name.localeCompare(a.name);
         }
-        if (basketSortBy === 'products_desc') {
-          return b.product_count - a.product_count;
-        }
         if (basketSortBy === 'newest') {
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        }
-        return 0;
-      });
-  }, [sets, basketSearch, basketSortBy]);
-
-  // Filter & Sort Products in Selected Basket
-  const filteredAndSortedProducts = useMemo(() => {
-    return products
-      .filter((p) => {
-        if (!productSearch.trim()) return true;
-        const q = productSearch.toLowerCase().trim();
-        const numStr = p.product_number != null ? `${p.product_number}` : '';
-        const numLabel1 = `item #${numStr}`.toLowerCase();
-        const numLabel2 = `product #${numStr}`.toLowerCase();
-        const numMatch = numStr === q || numLabel1.includes(q) || numLabel2.includes(q);
-        const nameMatch = p.name.toLowerCase().includes(q);
-        const descMatch = (p.description || '').toLowerCase().includes(q);
-        return numMatch || nameMatch || descMatch;
-      })
-      .sort((a, b) => {
-        if (productSortBy === 'number_asc') {
-          const numA = a.product_number != null ? a.product_number : 999999;
-          const numB = b.product_number != null ? b.product_number : 999999;
-          return numA - numB;
-        }
-        if (productSortBy === 'number_desc') {
-          const numA = a.product_number != null ? a.product_number : -1;
-          const numB = b.product_number != null ? b.product_number : -1;
-          return numB - numA;
-        }
-        if (productSortBy === 'price_asc') {
-          return (Number(a.price) || 0) - (Number(b.price) || 0);
-        }
-        if (productSortBy === 'price_desc') {
-          return (Number(b.price) || 0) - (Number(a.price) || 0);
-        }
-        if (productSortBy === 'name_asc') {
-          return a.name.localeCompare(b.name);
-        }
-        if (productSortBy === 'name_desc') {
-          return b.name.localeCompare(a.name);
-        }
-        if (productSortBy === 'newest') {
           return b.id - a.id;
         }
         return 0;
       });
-  }, [products, productSearch, productSortBy]);
+  }, [products, basketSearch, basketSortBy]);
 
   const selectedSet = sets.find((s) => s.id === selectedSetId);
 
@@ -492,30 +492,30 @@ export default function BasketsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <ShoppingBag className="w-6 h-6 text-brand-600" />
-            <span>Product Basket Sets</span>
+            <span>Product Sets &amp; Baskets</span>
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Organize products into numbered live-selling baskets with per-item numbers, WooCommerce checkout links, and customizable sorting.
+            Group your live-selling items into numbered Baskets (e.g. <span className="font-semibold text-slate-700">Basket #1, Basket #2</span>) inside Sets. Only 1 Set is active at a time.
           </p>
         </div>
 
         <button
           onClick={() => {
-            // Suggest next basket number
+            // Suggest next set number
             const maxNum = sets.reduce((max, s) => Math.max(max, s.basket_number || 0), 0);
-            setNewBasketNumber((maxNum + 1).toString());
+            setNewSetNumber((maxNum + 1).toString());
             setShowNewSetModal(true);
           }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>New Basket Set</span>
+          <span>New Set</span>
         </button>
       </div>
 
-      {/* Main Grid: Basket Sets sidebar (1/3) & Products list (2/3) */}
+      {/* Main Grid: Sets sidebar (1/3) & Baskets list (2/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-6">
-        {/* Left Column: Basket Sets List & Controls */}
+        {/* Left Column: Sets List & Controls */}
         <div className="lg:col-span-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -530,14 +530,14 @@ export default function BasketsPage() {
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Search by basket # or name..."
-                value={basketSearch}
-                onChange={(e) => setBasketSearch(e.target.value)}
+                placeholder="Search sets by # or name..."
+                value={setSearch}
+                onChange={(e) => setSetSearch(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-500 transition-all"
               />
-              {basketSearch && (
+              {setSearch && (
                 <button
-                  onClick={() => setBasketSearch('')}
+                  onClick={() => setSetSearch('')}
                   className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600"
                 >
                   ✕
@@ -546,33 +546,33 @@ export default function BasketsPage() {
             </div>
 
             <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
-              <label htmlFor="basket-sort-select" className="text-slate-500 font-medium flex items-center gap-1 text-[11px]">
+              <label htmlFor="set-sort-select" className="text-slate-500 font-medium flex items-center gap-1 text-[11px]">
                 <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                <span>Sort baskets:</span>
+                <span>Sort sets:</span>
               </label>
               <select
-                id="basket-sort-select"
-                aria-label="Sort baskets by"
-                value={basketSortBy}
-                onChange={(e: any) => setBasketSortBy(e.target.value)}
+                id="set-sort-select"
+                aria-label="Sort sets by"
+                value={setSortBy}
+                onChange={(e: any) => setSetSortBy(e.target.value)}
                 className="bg-transparent text-slate-700 font-semibold text-xs outline-none cursor-pointer hover:text-brand-600 transition-colors"
               >
-                <option value="number_asc">Basket # (1 → 9)</option>
-                <option value="number_desc">Basket # (9 → 1)</option>
+                <option value="number_asc">Set # (1 → 9)</option>
+                <option value="number_desc">Set # (9 → 1)</option>
                 <option value="active_first">Active Set First</option>
                 <option value="name_asc">Name (A → Z)</option>
                 <option value="name_desc">Name (Z → A)</option>
-                <option value="products_desc">Most Products</option>
+                <option value="products_desc">Most Baskets</option>
                 <option value="newest">Newest First</option>
               </select>
             </div>
           </div>
 
-          {/* Basket List */}
+          {/* Sets List */}
           <div className="space-y-3">
             {filteredAndSortedSets.length === 0 ? (
               <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-4">
-                <p className="text-xs text-slate-500">No basket sets match your search or filter.</p>
+                <p className="text-xs text-slate-500">No sets match your search or filter.</p>
               </div>
             ) : (
               filteredAndSortedSets.map((set) => {
@@ -592,8 +592,8 @@ export default function BasketsPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-brand-50 text-brand-700 border border-brand-200 shrink-0">
-                            Basket #{set.basket_number ?? set.id}
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                            Set #{set.basket_number ?? set.id}
                           </span>
                           <h3 className="font-bold text-slate-900 text-sm truncate">{set.name}</h3>
                           {isActive && (
@@ -614,7 +614,7 @@ export default function BasketsPage() {
                             e.stopPropagation();
                             openEditSet(set);
                           }}
-                          title="Edit Basket Info & Number"
+                          title="Edit Set Info & Number"
                           className="text-slate-400 hover:text-brand-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -634,7 +634,7 @@ export default function BasketsPage() {
 
                     <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                       <span className="text-slate-500 font-medium">
-                        {set.product_count} product{set.product_count === 1 ? '' : 's'}
+                        {set.product_count} basket{set.product_count === 1 ? '' : 's'}
                       </span>
 
                       {!isActive ? (
@@ -662,7 +662,7 @@ export default function BasketsPage() {
           </div>
         </div>
 
-        {/* Right Column: Products in the Selected Basket */}
+        {/* Right Column: Baskets in the Selected Set */}
         <div className="lg:col-span-8">
           {selectedSet ? (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-5">
@@ -670,8 +670,8 @@ export default function BasketsPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-100 gap-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-black bg-brand-100 text-brand-800 border border-brand-200">
-                      Basket #{selectedSet.basket_number ?? selectedSet.id}
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-black bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      Set #{selectedSet.basket_number ?? selectedSet.id}
                     </span>
                     <h2 className="text-lg font-bold text-slate-900">{selectedSet.name}</h2>
                     {selectedSet.is_active === 1 ? (
@@ -691,10 +691,10 @@ export default function BasketsPage() {
                   <button
                     onClick={() => openEditSet(selectedSet)}
                     className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1"
-                    title="Edit Basket Number & Info"
+                    title="Edit Set Number & Info"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    <span>Edit Basket</span>
+                    <span>Edit Set</span>
                   </button>
 
                   {selectedSet.is_active !== 1 && (
@@ -711,26 +711,26 @@ export default function BasketsPage() {
                     className="px-3.5 py-1.5 text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white rounded-xl shadow-sm transition-all flex items-center gap-1.5"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Add Product</span>
+                    <span>Add Basket</span>
                   </button>
                 </div>
               </div>
 
-              {/* Product Search & Sort Toolbar */}
+              {/* Baskets Search & Sort Toolbar */}
               {products.length > 0 && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
                   <div className="relative flex-1 max-w-sm">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                     <input
                       type="text"
-                      placeholder="Search items by product # or title..."
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Search baskets by # or title..."
+                      value={basketSearch}
+                      onChange={(e) => setBasketSearch(e.target.value)}
                       className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-brand-500"
                     />
-                    {productSearch && (
+                    {basketSearch && (
                       <button
-                        onClick={() => setProductSearch('')}
+                        onClick={() => setBasketSearch('')}
                         className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600"
                       >
                         ✕
@@ -740,19 +740,19 @@ export default function BasketsPage() {
 
                   <div className="flex items-center gap-3 text-xs">
                     <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
-                      {filteredAndSortedProducts.length} of {products.length} products
+                      {filteredAndSortedProducts.length} of {products.length} baskets
                     </span>
                     <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 border border-slate-200 rounded-lg shadow-2xs">
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                       <span className="text-slate-500 text-[11px]">Sort:</span>
                       <select
-                        aria-label="Sort products by"
-                        value={productSortBy}
-                        onChange={(e: any) => setProductSortBy(e.target.value)}
+                        aria-label="Sort baskets by"
+                        value={basketSortBy}
+                        onChange={(e: any) => setBasketSortBy(e.target.value)}
                         className="bg-transparent text-slate-700 font-semibold text-xs outline-none cursor-pointer hover:text-brand-600"
                       >
-                        <option value="number_asc">Item # (1 → 9)</option>
-                        <option value="number_desc">Item # (9 → 1)</option>
+                        <option value="number_asc">Basket # (1 → 9)</option>
+                        <option value="number_desc">Basket # (9 → 1)</option>
                         <option value="price_asc">Price: Low → High</option>
                         <option value="price_desc">Price: High → Low</option>
                         <option value="name_asc">Name: A → Z</option>
@@ -764,25 +764,25 @@ export default function BasketsPage() {
                 </div>
               )}
 
-              {/* Products Grid */}
+              {/* Baskets Grid */}
               <div className="space-y-4">
                 {products.length === 0 ? (
                   <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6">
                     <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <h4 className="text-sm font-semibold text-slate-700">No products in this basket set</h4>
+                    <h4 className="text-sm font-semibold text-slate-700">No baskets in this Set</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                      Click &quot;Add Product&quot; to auto-fetch details from your WooCommerce store URL or enter them manually.
+                      Click &quot;Add Basket&quot; to auto-fetch details from your WooCommerce store URL or enter them manually.
                     </p>
                     <button
                       onClick={openAddProduct}
                       className="mt-4 px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-xl"
                     >
-                      Add First Product
+                      Add First Basket
                     </button>
                   </div>
                 ) : filteredAndSortedProducts.length === 0 ? (
                   <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">No products match your search query &quot;{productSearch}&quot;.</p>
+                    <p className="text-xs text-slate-500">No baskets match your search query &quot;{basketSearch}&quot;.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -808,10 +808,10 @@ export default function BasketsPage() {
                             )}
 
                             <div className="min-w-0 flex-1">
-                              {/* Product Number Badge */}
+                              {/* Basket Number Badge */}
                               <div className="flex items-center gap-1.5 mb-1">
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-900 text-white shrink-0 tracking-wide">
-                                  ITEM #{p.product_number ?? p.id}
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-brand-600 text-white shrink-0 tracking-wide shadow-2xs">
+                                  BASKET #{p.product_number ?? p.id}
                                 </span>
                               </div>
 
@@ -872,14 +872,14 @@ export default function BasketsPage() {
                               <button
                                 onClick={() => openEditProduct(p)}
                                 className="p-1.5 text-slate-500 hover:text-brand-600 rounded-lg hover:bg-slate-200/60"
-                                title="Edit product"
+                                title="Edit Basket"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDeleteProduct(p.id)}
                                 className="p-1.5 text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50"
-                                title="Delete product"
+                                title="Delete Basket"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -893,18 +893,18 @@ export default function BasketsPage() {
               </div>
             </div>
           ) : (
-            <div className="p-8 text-center text-slate-400">Select a basket set to view products</div>
+            <div className="p-8 text-center text-slate-400">Select a set to view its baskets</div>
           )}
         </div>
       </div>
 
-      {/* Modal: Create New Basket Set */}
+      {/* Modal: Create New Set */}
       {showNewSetModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Create Basket Set</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Create Set</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Group products together into a promotional numbered set for live selling.
+              Group your live-selling baskets into a promotional Set.
             </p>
 
             <form onSubmit={handleCreateSet} className="space-y-4">
@@ -912,14 +912,14 @@ export default function BasketsPage() {
                 <div className="col-span-1">
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
                     <Hash className="w-3 h-3 text-brand-600" />
-                    <span>Basket #</span>
+                    <span>Set #</span>
                   </label>
                   <input
                     type="number"
                     min="1"
                     placeholder="1"
-                    value={newBasketNumber}
-                    onChange={(e) => setNewBasketNumber(e.target.value)}
+                    value={newSetNumber}
+                    onChange={(e) => setNewSetNumber(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-brand-500 outline-none"
                   />
                 </div>
@@ -984,13 +984,13 @@ export default function BasketsPage() {
         </div>
       )}
 
-      {/* Modal: Edit Basket Set */}
+      {/* Modal: Edit Set */}
       {showEditSetModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Edit Basket Set</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Edit Set</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Update basket number, title, or description.
+              Update set number, title, or description.
             </p>
 
             <form onSubmit={handleUpdateSet} className="space-y-4">
@@ -998,14 +998,14 @@ export default function BasketsPage() {
                 <div className="col-span-1">
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
                     <Hash className="w-3 h-3 text-brand-600" />
-                    <span>Basket #</span>
+                    <span>Set #</span>
                   </label>
                   <input
                     type="number"
                     min="1"
                     placeholder="1"
-                    value={editBasketNumber}
-                    onChange={(e) => setEditBasketNumber(e.target.value)}
+                    value={editSetNumber}
+                    onChange={(e) => setEditSetNumber(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-brand-500 outline-none"
                   />
                 </div>
@@ -1057,12 +1057,12 @@ export default function BasketsPage() {
         </div>
       )}
 
-      {/* Modal: Add / Edit Product (With Auto-Fetch & Price Range & Item # & Checkout URL) */}
+      {/* Modal: Add / Edit Basket (With Auto-Fetch & Price Range & Basket # & Checkout URL) */}
       {showProductModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl max-w-xl w-full p-6 border border-slate-200 my-8">
             <h3 className="text-lg font-bold text-slate-900 mb-1">
-              {editingProductId ? 'Edit Product' : 'Add Product to Basket'}
+              {editingProductId ? 'Edit Basket' : 'Add Basket to Set'}
             </h3>
             <p className="text-xs text-slate-500 mb-4">
               Paste a WooCommerce URL to auto-fill details, or type them manually.
@@ -1103,7 +1103,7 @@ export default function BasketsPage() {
               {fetchSuccess && (
                 <div className="mt-2 text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5" />
-                  <span>Product title, price range, image, and description fetched!</span>
+                  <span>Basket title, price range, image, and description fetched!</span>
                 </div>
               )}
             </div>
@@ -1119,7 +1119,7 @@ export default function BasketsPage() {
                 <div className="col-span-1">
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
                     <Hash className="w-3 h-3 text-brand-600" />
-                    <span>Item #</span>
+                    <span>Basket #</span>
                   </label>
                   <input
                     type="number"
@@ -1132,7 +1132,7 @@ export default function BasketsPage() {
                 </div>
                 <div className="col-span-3">
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Product Name *
+                    Basket Item Name *
                   </label>
                   <input
                     type="text"
@@ -1241,7 +1241,7 @@ export default function BasketsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                  Product Store URL (Product Catalog Page) *
+                  Product Store URL (WooCommerce Catalog Page) *
                 </label>
                 <div className="relative">
                   <input
@@ -1279,7 +1279,7 @@ export default function BasketsPage() {
                   <CreditCard className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-2.5" />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  💡 When a customer says &quot;I want to buy/order item 1&quot;, the AI bot sends this direct checkout link so they can pay immediately without navigating product/cart pages.
+                  💡 When a customer says &quot;I want to buy Basket 1&quot;, the AI bot sends this direct checkout link so they can pay immediately without navigating product/cart pages.
                 </p>
               </div>
 
@@ -1330,7 +1330,7 @@ export default function BasketsPage() {
                   type="submit"
                   className="px-4 py-2 text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white rounded-xl shadow-sm"
                 >
-                  Save Product
+                  Save Basket
                 </button>
               </div>
             </form>

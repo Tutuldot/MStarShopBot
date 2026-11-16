@@ -40,6 +40,7 @@ interface Message {
 
 interface Product {
   id: number;
+  product_number?: number | null;
   name: string;
   price: number;
   price_max?: number | null;
@@ -47,6 +48,7 @@ interface Product {
   description: string;
   image_url: string;
   product_url: string;
+  checkout_url?: string | null;
 }
 
 function ChatConsole() {
@@ -547,7 +549,7 @@ function ChatConsole() {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
                         <ShoppingBag className="w-3.5 h-3.5 text-brand-600" />
-                        Click to send a product card directly to this customer:
+                        Click to send a Basket card directly to this customer:
                       </span>
                       <button
                         onClick={() => setShowProductDrawer(false)}
@@ -564,7 +566,10 @@ function ChatConsole() {
                           className="bg-white p-2.5 rounded-xl border border-indigo-200 shadow-sm flex items-center justify-between gap-2"
                         >
                           <div className="min-w-0">
-                            <div className="text-xs font-bold text-slate-800 truncate">{p.name}</div>
+                            <div className="text-xs font-bold text-slate-800 truncate">
+                              <span className="text-brand-700 font-black mr-1">Basket #{p.product_number ?? p.id}:</span>
+                              {p.name}
+                            </div>
                             <div className="text-[11px] text-brand-600 font-semibold">
                               {p.price_max && p.price_max > p.price
                                 ? `${p.currency || '$'}${Number(p.price).toLocaleString()} – ${p.currency || '$'}${Number(p.price_max).toLocaleString()}`

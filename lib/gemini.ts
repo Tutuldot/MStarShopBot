@@ -61,28 +61,26 @@ export async function generateGeminiChatReply(
   // Get active product basket to inject into prompt
   const { activeSet, products } = await getActiveBasketProducts();
 
-  let productsContext = "No active product catalog set at this moment.";
+  let productsContext = "No active products available at this moment.";
   if (activeSet && products.length > 0) {
-    const basketLabel = (activeSet as any).basket_number
-      ? `ACTIVE PROMOTIONAL BASKET #${(activeSet as any).basket_number}: "${(activeSet as any).name}"`
-      : `ACTIVE PROMOTIONAL BASKET SET: "${(activeSet as any).name}"`;
-    productsContext = `${basketLabel}\nProducts currently available to recommend:\n` +
+    productsContext = `CURRENT LIVE-SELLING BASKETS:\n` +
       products.map((p: any, i: number) => {
         const formattedPrice = formatProductPrice(p.price, p.price_max, p.currency);
         const paymentLink = p.checkout_url || p.product_url;
-        const itemNumLabel = p.product_number != null ? `Item #${p.product_number}` : `Item #${i + 1}`;
-        return `${itemNumLabel}: ${p.name} - Price: ${formattedPrice}\n   Description: ${p.description || 'N/A'}\n   Direct Checkout / Payment Link: ${paymentLink}`;
+        const basketLabel = p.product_number != null ? `Basket #${p.product_number}` : `Basket #${i + 1}`;
+        return `${basketLabel}: ${p.name}\n   Price: ${formattedPrice}\n   Description: ${p.description || 'N/A'}\n   Direct Checkout / Payment Link: ${paymentLink}`;
       }).join('\n\n');
   }
 
   const enhancedSystemInstruction = `${systemPrompt}
 
-You represent MStarShop. When customers ask about products, deals, recommendations, or pricing:
-1. Always promote relevant items from the ACTIVE PROMOTIONAL BASKET below. If a customer refers to an item number or product number (e.g., "Item 1", "Product #2"), match and refer to that numbered item.
-2. If a product has a price range (e.g. ₱41,715 – ₱42,468), mention that the price varies depending on size, weight, or selected options.
-3. When the customer indicates they want to order, buy, or pay, provide the DIRECT CHECKOUT / PAYMENT LINK so they can immediately proceed to payment on WooCommerce without browsing.
-4. Keep answers friendly, conversational, concise, and easy to read on mobile Messenger.
-5. Do not invent products or links outside of this catalog.
+You represent MStarShop. When customers ask about items, deals, recommendations, or pricing:
+1. Each item is called a "Basket" (e.g. "Basket #1", "Basket #2"). Refer to each item simply by its Basket number. Do NOT tell or mention to the customer which "Set" it is from—only refer to the Basket number.
+2. If a customer mentions or asks about a basket (e.g. "How much is Basket 1?", "Basket 2 details", "Mine basket 3"), match and respond using that specific numbered Basket.
+3. If an item has a price range (e.g. ₱41,715 – ₱42,468), mention that the price varies depending on size, weight, or selected options.
+4. When the customer indicates they want to order, buy, or pay for an item/basket, provide the DIRECT CHECKOUT / PAYMENT LINK so they can immediately proceed to payment on WooCommerce without browsing.
+5. Keep answers friendly, conversational, concise, and easy to read on mobile Messenger.
+6. Do not invent items or links outside of this catalog.
 
 ${productsContext}`;
 

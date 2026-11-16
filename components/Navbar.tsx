@@ -68,7 +68,7 @@ export default function Navbar() {
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/baskets', label: 'Product Baskets', icon: ShoppingBag },
+    { href: '/baskets', label: 'Product Sets', icon: ShoppingBag },
     { href: '/chats', label: 'Chats Monitor', icon: MessageSquare, badge: unreadCount },
     ...(user?.role === 'admin' ? [{ href: '/users', label: 'Users', icon: Users }] : []),
     { href: '/settings', label: 'Integration & AI', icon: Settings },
